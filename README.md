@@ -26,3 +26,7 @@ See:
 - docs/02_architecture_overview.md
 - docs/12_dev_workflow_and_standards.md
 - docs/13_backlog_mvp.md
+
+## Local validation
+
+Run `./scripts/validate-local.sh` to verify probe → profile → prod → incremental → removals. Requires Postgres, Redis, API, and worker. See docs/22_local_validation.md.

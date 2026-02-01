@@ -23,8 +23,8 @@ function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean
 
 function isLikelyDetailUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
-  return tokens.some((t) => lower.includes(t));
+  const tokens = ["/bil/", "/kopa-bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
+  return tokens.some((t: string) => lower.includes(t));
 }
 
 export async function discoverViaHeadlessListing(
@@ -38,12 +38,44 @@ export async function discoverViaHeadlessListing(
   const seen = new Map<string, string>();
   const items: DiscoveredItem[] = [];
 
-  const res = await driver.fetch(ctx.baseUrl, { timeoutMs: profile.fetch?.headless?.timeoutMs ?? 30_000 });
-  if (res.status !== 200 || !res.body) return [];
+  let html = "";
+  let browser: Awaited<ReturnType<typeof import("playwright").chromium.launch>> | null = null;
+  try {
+    const { chromium } = await import("playwright");
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    const timeoutMs = profile.fetch?.headless?.timeoutMs ?? 30_000;
+    await page.goto(ctx.baseUrl, { waitUntil: "networkidle", timeout: timeoutMs });
+    const loadMoreTexts = ["visa fler", "ladda fler", "load more", "show more"];
+    for (let i = 0; i < 5; i += 1) {
+      const buttons = await page.$$("button, a");
+      let clicked = false;
+      for (const btn of buttons) {
+        const text = (await btn.innerText()).toLowerCase();
+        if (loadMoreTexts.some((t) => text.includes(t))) {
+          await btn.click();
+          clicked = true;
+          await page.waitForTimeout(1500);
+          break;
+        }
+      }
+      if (!clicked) break;
+    }
+    html = await page.content();
+  } catch {
+    const res = await driver.fetch(ctx.baseUrl, { timeoutMs: profile.fetch?.headless?.timeoutMs ?? 30_000 });
+    if (res.status !== 200 || !res.body) return [];
+    html = res.body;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
 
   let m: RegExpExecArray | null;
   HREF_REGEX.lastIndex = 0;
-  while ((m = HREF_REGEX.exec(res.body)) !== null) {
+  while ((m = HREF_REGEX.exec(html)) !== null) {
     const href = m[1]?.trim();
     if (!href || !sanitizeCandidateUrl(href)) continue;
     const absolute = normalizeUrl(href, ctx.baseUrl, { sameHost: true });

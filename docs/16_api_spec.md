@@ -61,11 +61,27 @@ Update name/strategy/config/schedule fields.
 ### Test Run
 POST /v1/data-sources/:id/test-run
 Creates scrape_runs row (run_type=test, status=queued) and enqueues SCRAPE_TEST.
-Returns:
-{
-  "runId": "...",
-  "jobId": "..."
-}
+Returns: { "runId": "...", "jobId": "..." }
+
+### Probe (Onboarding)
+POST /v1/data-sources/:id/probe
+Creates scrape_runs row (run_type=probe, status=queued) and enqueues SOURCE_PROBE.
+Probe determines discovery strategy, samples detail pages, and persists SiteProfile to data_sources.config_json.
+Returns: { "runId": "...", "jobId": "..." }
+
+### Prod Run
+POST /v1/data-sources/:id/prod-run
+Creates scrape_runs row (run_type=prod, status=queued) and enqueues SCRAPE_PROD.
+Requires SiteProfile; run probe first if missing.
+Returns: { "runId": "...", "jobId": "..." }
+
+### Items
+GET /v1/data-sources/:id/items?active=true&limit=10
+Returns items for customer and data source. Query params: active (filter by is_active), limit (default 10, max 100).
+Response: { "data": [{ id, url, title, primaryImageUrl, detailFetchedAt, isActive }] }
+
+GET /v1/items/:id
+Returns one item by id (customer-owned). 404 if not found.
 
 ### Runs
 GET /v1/scrape-runs?dataSourceId=<uuid>&limit=50
@@ -73,6 +89,9 @@ Lists runs for customer and optional dataSourceId.
 
 GET /v1/scrape-runs/:runId
 Returns one run (customer-owned).
+
+GET /v1/scrape-runs/:runId/summary
+Returns run + event count + latestErrorEventCode + sample title (for quick status).
 
 GET /v1/scrape-runs/:runId/events?limit=200
 Returns run_events for that run.

@@ -7,11 +7,14 @@ All rows that belong to a customer must include customer_id.
 - customers(id, name, status, created_at)
 - users(id, customer_id, email, role, created_at)
 
-- data_sources(id, customer_id, name, base_url, strategy, schedule_enabled, schedule_cron, max_items, created_at, updated_at)
+- data_sources(id, customer_id, name, base_url, strategy, schedule_enabled, schedule_cron, max_items, config_json, created_at, updated_at)
+  - config_json: SiteProfile (profileVersion, probe, discovery, fetch, extract, limits); written by SOURCE_PROBE
 
-- scrape_runs(id, customer_id, data_source_id, run_type[test|prod], status, started_at, finished_at, items_found, items_new, items_updated, items_deleted, error_code, error_message)
+- scrape_runs(id, customer_id, data_source_id, run_type[test|prod|probe], status, job_id, started_at, finished_at, items_found, items_new, items_updated, items_deleted, items_seen, items_removed, error_code, error_message)
 
-- items(id, customer_id, data_source_id, source_item_id, title, price, currency, url, image_url, attributes_json, hash, is_active, first_seen_at, last_seen_at, updated_at)
+- items(id, customer_id, data_source_id, source_item_id, title, price, currency, url, image_url, attributes_json, hash, is_active, first_seen_at, last_seen_at, updated_at,
+  removed_at, last_seen_run_id, last_detail_run_id, detail_fetched_at, content_hash,
+  description_text, price_amount, price_currency, image_urls_json, primary_image_url)
   - unique(customer_id, data_source_id, source_item_id)
 
 - catalogs(id, customer_id, name, is_active, rules_json, created_at, updated_at)
