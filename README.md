@@ -1,6 +1,6 @@
-# Internet Broker MVP (IB Crawler) — New Project
+# Project AUTO
 
-This repository contains the implementation of the Internet Broker MVP:
+This repository contains the implementation of an automated social ad enabler.
 - Crawl customer inventory sites nightly
 - Normalize inventory items into catalogs
 - Sync catalogs to Meta Advantage+ and generate campaigns/ads
