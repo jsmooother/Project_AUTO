@@ -47,6 +47,7 @@ export const dataSources = pgTable("data_sources", {
   scheduleEnabled: boolean("schedule_enabled").notNull().default(false),
   scheduleCron: text("schedule_cron"),
   maxItems: integer("max_items"),
+  configJson: jsonb("config_json"), // SiteProfile: profileVersion, probe, discovery, fetch, extract, limits
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -57,15 +58,17 @@ export const scrapeRuns = pgTable("scrape_runs", {
   dataSourceId: uuid("data_source_id")
     .notNull()
     .references(() => dataSources.id, { onDelete: "cascade" }),
-  runType: text("run_type").notNull(), // 'test' | 'prod'
+  runType: text("run_type").notNull(), // 'test' | 'prod' | 'probe'
   status: text("status").notNull(),
   jobId: text("job_id"),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   itemsFound: integer("items_found"),
-  itemsNew: integer("items_new"),
+  itemsNew: integer("items_new").notNull().default(0),
   itemsUpdated: integer("items_updated"),
   itemsDeleted: integer("items_deleted"),
+  itemsSeen: integer("items_seen").notNull().default(0),
+  itemsRemoved: integer("items_removed").notNull().default(0),
   errorCode: text("error_code"),
   errorMessage: text("error_message"),
 });
@@ -90,6 +93,18 @@ export const items = pgTable(
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // Lifecycle (incremental add/remove)
+    removedAt: timestamp("removed_at", { withTimezone: true }),
+    lastSeenRunId: uuid("last_seen_run_id").references(() => scrapeRuns.id, { onDelete: "set null" }),
+    lastDetailRunId: uuid("last_detail_run_id").references(() => scrapeRuns.id, { onDelete: "set null" }),
+    detailFetchedAt: timestamp("detail_fetched_at", { withTimezone: true }),
+    contentHash: text("content_hash"),
+    // Detail (vehicle/generic)
+    descriptionText: text("description_text"),
+    priceAmount: numeric("price_amount", { precision: 20, scale: 4 }),
+    priceCurrency: text("price_currency"),
+    imageUrlsJson: jsonb("image_urls_json"),
+    primaryImageUrl: text("primary_image_url"),
   },
   (t) => [unique().on(t.customerId, t.dataSourceId, t.sourceItemId)]
 );
@@ -220,7 +235,10 @@ export const runEvents = pgTable("run_events", {
 export const reproBundles = pgTable("repro_bundles", {
   id: uuid("id").primaryKey().defaultRandom(),
   customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
-  runId: text("run_id").notNull(),
+  jobType: text("job_type").notNull(),
+  jobId: text("job_id").notNull(),
+  runId: uuid("run_id").references(() => scrapeRuns.id, { onDelete: "set null" }),
+  dataSourceId: uuid("data_source_id").references(() => dataSources.id, { onDelete: "set null" }),
   storageKey: text("storage_key").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

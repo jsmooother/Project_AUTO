@@ -1,15 +1,21 @@
 /**
  * Migration runner: creates schema_migrations, applies pending SQL files in order.
  * Run from repo root: pnpm db:migrate (runs in packages/db after build).
+ * Loads .env from repo root so DATABASE_URL is available when run via turbo.
+ * Root .env is used when you run pnpm db:migrate from repo root.
  */
-import "dotenv/config";
+import dotenv from "dotenv";
 import pg from "pg";
 import { readdir, readFile } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ROOT = join(__dirname, "..");
+const PACKAGE_ROOT = join(__dirname, "..");
+const REPO_ROOT = join(PACKAGE_ROOT, "..", "..");
+dotenv.config({ path: join(REPO_ROOT, ".env") });
+
+const ROOT = PACKAGE_ROOT;
 const MIGRATIONS_DIR = join(ROOT, "migrations");
 
 async function main(): Promise<void> {

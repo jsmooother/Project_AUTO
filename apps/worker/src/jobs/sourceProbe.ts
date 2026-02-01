@@ -1,0 +1,313 @@
+/**
+ * SOURCE_PROBE: try discovery strategies cheap→expensive, sample detail pages,
+ * build SiteProfile and persist to data_sources.config_json.
+ */
+
+import { eq, and } from "drizzle-orm";
+import { db } from "../lib/db.js";
+import { dataSources, scrapeRuns } from "@repo/db/schema";
+import type { SiteProfile } from "@repo/shared";
+import {
+  DEFAULT_PROFILE_LIMITS,
+  type DiscoveryStrategy,
+  type SiteProfileDiscovery,
+} from "@repo/shared";
+import { JOB_TYPES, type QueuedJob } from "@repo/queue";
+import { createRunEventsWriter } from "@repo/observability/runEvents";
+import { createHttpDriver } from "../lib/drivers/index.js";
+import { getDiscoveryStrategyOrder } from "../lib/discovery/index.js";
+import { discoverViaSitemap } from "../lib/discovery/sitemap.js";
+import { discoverViaHtmlLinks } from "../lib/discovery/htmlLinks.js";
+import { discoverViaEndpointSniff } from "../lib/discovery/endpointSniff.js";
+import { extract } from "../lib/extractors/index.js";
+import type { SiteProfileExtract, SiteProfileFetch } from "@repo/shared";
+
+const PROFILE_VERSION = 1;
+const MIN_ITEMS_STRONG = 20;
+const MIN_ITEMS_WEAK = 3;
+const SAMPLE_DETAIL_COUNT = 3;
+
+function buildTrialProfile(baseUrl: string, strategy: DiscoveryStrategy): SiteProfile {
+  return {
+    profileVersion: PROFILE_VERSION,
+    probe: { testedAt: "", confidence: 0, notes: [] },
+    discovery: {
+      strategy,
+      seedUrls: strategy === "html_links" || strategy === "endpoint_sniff" ? [baseUrl] : [],
+      sitemapUrls: [],
+      detailUrlPatterns: [],
+      idFromUrl: { mode: "last_segment" },
+    },
+    fetch: { driver: "http", http: { timeoutMs: 15_000 } },
+    extract: { vertical: "generic", strategy: "dom" },
+    limits: DEFAULT_PROFILE_LIMITS,
+  };
+}
+
+function learnDetailUrlPattern(sampleUrls: string[]): string[] {
+  const first = sampleUrls[0];
+  if (!first) return [];
+  try {
+    const u = new URL(first);
+    const path = u.pathname;
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length < 2) return [".*"];
+    const prefix = segments.slice(0, -1).join("/");
+    return [`.*${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^/]*/?.*`];
+  } catch {
+    return [".*"];
+  }
+}
+
+function detectVertical(attributesJson: Record<string, unknown>): "vehicle" | "generic" {
+  const vehicleKeys = ["regNr", "miltal", "bransle", "vaxellada", "arsmodell", "fordonstyp", "farg", "marke", "modell", "features"];
+  for (const k of vehicleKeys) {
+    if (attributesJson[k] != null) return "vehicle";
+  }
+  return "generic";
+}
+
+export async function processSourceProbe(
+  job: QueuedJob<{ dataSourceId: string }>
+): Promise<void> {
+  const { jobId, payload, correlation } = job;
+  const { customerId, dataSourceId, runId: correlationRunId } = correlation;
+
+  if (!customerId || !dataSourceId) {
+    await job.deadLetter("Missing correlation: customerId, dataSourceId required");
+    return;
+  }
+
+  const emit = createRunEventsWriter(db);
+  let runId = correlationRunId ?? null;
+  if (!runId) {
+    const [run] = await db
+      .insert(scrapeRuns)
+      .values({
+        customerId,
+        dataSourceId,
+        runType: "probe",
+        status: "running",
+      })
+      .returning({ id: scrapeRuns.id });
+    runId = run ? String(run.id) : null;
+  }
+  if (!runId) {
+    await job.deadLetter("Failed to create probe run");
+    return;
+  }
+  const basePayload = {
+    customerId,
+    jobType: JOB_TYPES.SOURCE_PROBE,
+    jobId: String(jobId),
+    runId,
+    dataSourceId,
+  };
+
+  await db
+    .update(scrapeRuns)
+    .set({ status: "running" })
+    .where(and(eq(scrapeRuns.id, runId), eq(scrapeRuns.customerId, customerId)));
+
+  await emit({
+    ...basePayload,
+    level: "info",
+    stage: "probe",
+    eventCode: "PROBE_START",
+    message: "Onboarding probe started",
+  });
+
+  const [ds] = await db
+    .select()
+    .from(dataSources)
+    .where(and(eq(dataSources.id, payload.dataSourceId), eq(dataSources.customerId, customerId)))
+    .limit(1);
+
+  if (!ds) {
+    await db
+      .update(scrapeRuns)
+      .set({ status: "failed", errorCode: "NOT_FOUND", errorMessage: "Data source not found", finishedAt: new Date() })
+      .where(and(eq(scrapeRuns.id, runId), eq(scrapeRuns.customerId, customerId)));
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "probe",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message: "Data source not found",
+    });
+    await job.deadLetter("Data source not found");
+    return;
+  }
+
+  try {
+  const baseUrl = ds.baseUrl;
+  const strategies = getDiscoveryStrategyOrder();
+  let selectedStrategy: DiscoveryStrategy = "unknown";
+  let discoveredItems: Array<{ sourceItemId: string; url: string }> = [];
+  let selectedMeta: Record<string, unknown> | undefined;
+  const driver = createHttpDriver();
+
+  for (const strategy of strategies) {
+    const profile = buildTrialProfile(baseUrl, strategy);
+    let items: Array<{ sourceItemId: string; url: string }> = [];
+    try {
+      if (strategy === "sitemap") {
+        const ctx = { baseUrl, origin: new URL(baseUrl).origin };
+        items = await discoverViaSitemap(driver, profile, ctx);
+      } else if (strategy === "html_links") {
+        const ctx = { baseUrl, origin: new URL(baseUrl).origin };
+        items = await discoverViaHtmlLinks(driver, profile, ctx);
+      } else if (strategy === "endpoint_sniff") {
+        const ctx = { baseUrl, origin: new URL(baseUrl).origin };
+        const result = await discoverViaEndpointSniff(driver, profile, ctx);
+        items = result.items;
+        selectedMeta = result.meta;
+      }
+      if (items.length > discoveredItems.length) {
+        selectedStrategy = strategy;
+        discoveredItems = items;
+      }
+      if (items.length >= MIN_ITEMS_STRONG) break;
+    } catch (_) {
+      /* try next strategy */
+    }
+  }
+
+  const foundCount = discoveredItems.length;
+  let confidence = 0.1;
+  const notes: string[] = [];
+  if (foundCount >= MIN_ITEMS_STRONG) {
+    confidence = 0.9;
+  } else if (foundCount >= MIN_ITEMS_WEAK) {
+    confidence = 0.5;
+    notes.push(`Only ${foundCount} items discovered; consider adding seedUrls or enabling headless discovery.`);
+  } else if (foundCount > 0) {
+    confidence = 0.1;
+    notes.push(`Only ${foundCount} items discovered; consider adding sitemapUrls/seedUrls or enabling headless.`);
+  } else {
+    selectedStrategy = "unknown";
+    notes.push("No items discovered; add sitemapUrls/seedUrls or enable headless discovery.");
+  }
+
+  await emit({
+    ...basePayload,
+    level: "info",
+    stage: "probe",
+    eventCode: "PROBE_STRATEGY_SELECTED",
+    message: `Discovery strategy selected: ${selectedStrategy}`,
+    meta: { strategy: selectedStrategy, discoveredCount: discoveredItems.length },
+  });
+
+  let extractVertical: "vehicle" | "generic" = "generic";
+  const detailCandidates = discoveredItems.slice(0, 12).map((i) => i.url);
+  const validDetailUrls: string[] = [];
+  let detailUrlPatterns: string[] = [];
+
+  for (const url of detailCandidates) {
+    try {
+      const res = await driver.fetch(url, { timeoutMs: 15_000 });
+      if (res.status !== 200 || !res.body) continue;
+      const trialProfile: SiteProfile = {
+        profileVersion: 1,
+        probe: { testedAt: "", confidence: 0, notes: [] },
+        discovery: {
+          strategy: selectedStrategy,
+          seedUrls: selectedStrategy === "html_links" || selectedStrategy === "endpoint_sniff" ? [baseUrl] : [],
+          sitemapUrls: [],
+          detailUrlPatterns,
+          idFromUrl: { mode: "last_segment" },
+        },
+        fetch: { driver: "http" },
+        extract: { vertical: "generic", strategy: "dom" },
+        limits: DEFAULT_PROFILE_LIMITS,
+      };
+      const extracted = extract({ profile: trialProfile, fetchResult: res });
+      if (extracted.baseFields.title || extracted.imageUrls.length >= 1) {
+        extractVertical = detectVertical(extracted.attributesJson);
+        validDetailUrls.push(url);
+        if (validDetailUrls.length >= SAMPLE_DETAIL_COUNT) break;
+      }
+    } catch (_) {
+      /* next sample */
+    }
+  }
+
+  if (validDetailUrls.length > 0) {
+    detailUrlPatterns = learnDetailUrlPattern(validDetailUrls);
+  }
+
+  const discovery: SiteProfileDiscovery = {
+    strategy: selectedStrategy,
+    seedUrls: selectedStrategy === "html_links" || selectedStrategy === "endpoint_sniff" ? [baseUrl] : [],
+    sitemapUrls: [],
+    detailUrlPatterns: detailUrlPatterns.length > 0 ? detailUrlPatterns : [".*"],
+    idFromUrl: { mode: "last_segment" },
+  };
+  const fetchConfig: SiteProfileFetch = {
+    driver: "http",
+    http: { timeoutMs: 15_000 },
+    headless: { enabled: false, timeoutMs: 30_000 },
+  };
+  const extractConfig: SiteProfileExtract = {
+    vertical: extractVertical,
+    strategy: "dom",
+  };
+
+  const configJson: SiteProfile = {
+    profileVersion: PROFILE_VERSION,
+    probe: {
+      testedAt: new Date().toISOString(),
+      confidence,
+      notes,
+    },
+    discovery,
+    fetch: fetchConfig,
+    extract: extractConfig,
+    limits: DEFAULT_PROFILE_LIMITS,
+  };
+
+  await db
+    .update(dataSources)
+    .set({
+      configJson: configJson as unknown as Record<string, unknown>,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(dataSources.id, payload.dataSourceId), eq(dataSources.customerId, customerId)));
+
+  await db
+    .update(scrapeRuns)
+    .set({ status: "success", finishedAt: new Date() })
+    .where(and(eq(scrapeRuns.id, runId), eq(scrapeRuns.customerId, customerId)));
+
+  await emit({
+    ...basePayload,
+    level: "info",
+    stage: "probe",
+    eventCode: "PROBE_DONE",
+    message: "Probe completed",
+    meta: {
+      confidence,
+      strategy: selectedStrategy,
+      foundCount,
+      notes,
+      ...(selectedMeta ?? {}),
+    },
+  });
+
+  await job.ack();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await db
+      .update(scrapeRuns)
+      .set({ status: "failed", errorCode: "SCRAPE_CRASH", errorMessage: message, finishedAt: new Date() })
+      .where(and(eq(scrapeRuns.id, runId), eq(scrapeRuns.customerId, customerId)));
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "probe",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message,
+    });
+    await job.deadLetter(message);
+  }
+}

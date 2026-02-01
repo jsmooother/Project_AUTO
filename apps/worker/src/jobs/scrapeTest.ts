@@ -4,11 +4,15 @@ import { storage, REPRO_BUCKET } from "../lib/storage.js";
 import { fetchWithTrace } from "../lib/http.js";
 import { mapErrorToEventCode } from "../lib/errorMap.js";
 import { dataSources, scrapeRuns, reproBundles } from "@repo/db/schema";
-import type { QueuedJob } from "@repo/queue";
+import { JOB_TYPES, type QueuedJob } from "@repo/queue";
 import { createRunEventsWriter } from "@repo/observability/runEvents";
 import { sanitizeForLog } from "@repo/observability/sanitize";
 
 const HTML_SAMPLE_MAX_BYTES = 150_000;
+
+function reproKey(customerId: string, jobType: string, jobId: string, filename: string): string {
+  return `${customerId}/${jobType}/${jobId}/${filename}`;
+}
 
 function stripHtmlSample(html: string): string {
   const truncated = html.length > HTML_SAMPLE_MAX_BYTES ? html.slice(0, HTML_SAMPLE_MAX_BYTES) : html;
@@ -20,23 +24,28 @@ function extractTitle(html: string): string | null {
   return match?.[1] != null ? match[1].trim() : null;
 }
 
-/** Only writes to storage and inserts repro_bundles when storage is configured. Otherwise no-op (no dangling DB rows). */
-async function saveReproBundle(
-  runId: string,
-  customerId: string,
-  jobType: string,
-  jobId: string,
-  keySuffix: string,
-  body: string | Uint8Array,
-  contentType: string
-): Promise<void> {
+type SaveReproParams = {
+  customerId: string;
+  jobType: string;
+  jobId: string;
+  runId?: string | null;
+  dataSourceId?: string | null;
+  storageKey: string;
+  contentType: string;
+  bytes: Uint8Array;
+};
+
+/** Saves a repro artifact to storage and records it in DB. No-op (no DB rows) when storage is not configured. */
+async function saveReproBundle(params: SaveReproParams): Promise<void> {
+  const { customerId, jobType, jobId, runId = null, dataSourceId = null, storageKey, contentType, bytes } = params;
   if (!storage) return;
-  const storageKey = `repro/${customerId}/${jobType}/${jobId}/${keySuffix}`;
-  const bytes = typeof body === "string" ? new TextEncoder().encode(body) : body;
   await storage.putObject(REPRO_BUCKET, storageKey, bytes, { contentType });
   await db.insert(reproBundles).values({
     customerId,
-    runId,
+    jobType,
+    jobId,
+    runId: runId ?? undefined,
+    dataSourceId: dataSourceId ?? undefined,
     storageKey,
   });
 }
@@ -51,10 +60,11 @@ export async function processScrapeTest(job: QueuedJob<{ dataSourceId: string }>
   }
 
   const emit = createRunEventsWriter(db);
+  const jobType = JOB_TYPES.SCRAPE_TEST;
   const basePayload = {
     customerId,
-    jobType: "SCRAPE_TEST",
-    jobId,
+    jobType,
+    jobId: String(jobId),
     runId,
     dataSourceId,
   };
@@ -119,15 +129,16 @@ export async function processScrapeTest(job: QueuedJob<{ dataSourceId: string }>
     const { body: html, trace } = await fetchWithTrace(ds.baseUrl);
 
     const traceJson = JSON.stringify(sanitizeForLog(trace));
-    await saveReproBundle(
-      runId,
+    await saveReproBundle({
       customerId,
-      "SCRAPE_TEST",
-      jobId,
-      "http_trace.json",
-      traceJson,
-      "application/json"
-    );
+      jobType,
+      jobId: String(jobId),
+      runId,
+      dataSourceId,
+      storageKey: reproKey(customerId, jobType, String(jobId), "http_trace.json"),
+      contentType: "application/json",
+      bytes: new TextEncoder().encode(traceJson),
+    });
 
     if (trace.error || trace.status === null || (trace.status !== undefined && trace.status >= 400)) {
       await db
@@ -148,15 +159,16 @@ export async function processScrapeTest(job: QueuedJob<{ dataSourceId: string }>
         meta: sanitizeForLog(trace),
       });
       const htmlSample = stripHtmlSample(html);
-      await saveReproBundle(
-        runId,
+      await saveReproBundle({
         customerId,
-        "SCRAPE_TEST",
-        jobId,
-        "html_sample.html",
-        htmlSample,
-        "text/html"
-      );
+        jobType,
+        jobId: String(jobId),
+        runId,
+        dataSourceId,
+        storageKey: reproKey(customerId, jobType, String(jobId), "html_sample.html"),
+        contentType: "text/html; charset=utf-8",
+        bytes: new TextEncoder().encode(htmlSample),
+      });
       await emit({
         ...basePayload,
         level: "error",
@@ -178,15 +190,16 @@ export async function processScrapeTest(job: QueuedJob<{ dataSourceId: string }>
     });
 
     const htmlSample = stripHtmlSample(html);
-    await saveReproBundle(
-      runId,
+    await saveReproBundle({
       customerId,
-      "SCRAPE_TEST",
-      jobId,
-      "html_sample.html",
-      htmlSample,
-      "text/html"
-    );
+      jobType,
+      jobId: String(jobId),
+      runId,
+      dataSourceId,
+      storageKey: reproKey(customerId, jobType, String(jobId), "html_sample.html"),
+      contentType: "text/html; charset=utf-8",
+      bytes: new TextEncoder().encode(htmlSample),
+    });
 
     const title = extractTitle(html);
     await emit({
@@ -242,15 +255,16 @@ export async function processScrapeTest(job: QueuedJob<{ dataSourceId: string }>
     try {
       if (storage) {
         const traceJson = JSON.stringify(sanitizeForLog({ error: message }));
-        await saveReproBundle(
-          runId,
+        await saveReproBundle({
           customerId,
-          "SCRAPE_TEST",
-          jobId,
-          "http_trace.json",
-          traceJson,
-          "application/json"
-        );
+          jobType,
+          jobId: String(jobId),
+          runId,
+          dataSourceId,
+          storageKey: reproKey(customerId, jobType, String(jobId), "http_trace.json"),
+          contentType: "application/json",
+          bytes: new TextEncoder().encode(traceJson),
+        });
       }
     } catch (_) {
       /* best effort */

@@ -1,18 +1,20 @@
+import "./lib/env.js";
 import { queue } from "./lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
 import { processScrapeTest } from "./jobs/scrapeTest.js";
+import { processSourceProbe } from "./jobs/sourceProbe.js";
+import { processScrapeProd } from "./jobs/scrapeProd.js";
 
 const workers: Array<{ close: () => Promise<void> }> = [];
 
 workers.push(
   queue.createWorker(JOB_TYPES.SCRAPE_TEST, processScrapeTest)
 );
-
-// SCRAPE_PROD stub: not implemented
 workers.push(
-  queue.createWorker(JOB_TYPES.SCRAPE_PROD, async (job) => {
-    await job.deadLetter("SCRAPE_PROD not implemented");
-  })
+  queue.createWorker(JOB_TYPES.SOURCE_PROBE, processSourceProbe)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.SCRAPE_PROD, processScrapeProd)
 );
 
 async function shutdown(): Promise<void> {

@@ -8,6 +8,7 @@ const createBody = z.object({
   name: z.string().min(1),
   baseUrl: z.string().url(),
   strategy: z.enum(["http", "playwright", "agentql"]).default("http"),
+  config: z.record(z.unknown()).optional(),
   scheduleEnabled: z.boolean().optional(),
   scheduleCron: z.string().optional(),
   maxItems: z.number().int().positive().optional(),
@@ -16,6 +17,7 @@ const createBody = z.object({
 const updateBody = z.object({
   name: z.string().min(1).optional(),
   strategy: z.enum(["http", "playwright", "agentql"]).optional(),
+  config: z.record(z.unknown()).optional(),
   scheduleEnabled: z.boolean().optional(),
   scheduleCron: z.string().optional(),
   maxItems: z.number().int().positive().optional(),
@@ -37,6 +39,7 @@ export async function dataSourceRoutes(app: FastifyInstance): Promise<void> {
         name: parsed.data.name,
         baseUrl: parsed.data.baseUrl,
         strategy: parsed.data.strategy,
+        configJson: parsed.data.config ?? null,
         scheduleEnabled: parsed.data.scheduleEnabled ?? false,
         scheduleCron: parsed.data.scheduleCron ?? null,
         maxItems: parsed.data.maxItems ?? null,
@@ -83,6 +86,7 @@ export async function dataSourceRoutes(app: FastifyInstance): Promise<void> {
       .set({
         ...(parsed.data.name != null && { name: parsed.data.name }),
         ...(parsed.data.strategy != null && { strategy: parsed.data.strategy }),
+        ...(parsed.data.config != null && { configJson: parsed.data.config }),
         ...(parsed.data.scheduleEnabled != null && { scheduleEnabled: parsed.data.scheduleEnabled }),
         ...(parsed.data.scheduleCron != null && { scheduleCron: parsed.data.scheduleCron }),
         ...(parsed.data.maxItems != null && { maxItems: parsed.data.maxItems }),

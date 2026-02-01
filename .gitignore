@@ -1,6 +1,23 @@
-node_modules/
-.turbo/
-dist/
+# env & secrets
 .env
+.env.*.local
+
+# local data / dumps
+dump.rdb
+*.rdb
 *.log
+
+# dependencies & builds
+node_modules/
+dist/
+.turbo/
+.next/
+**/tsconfig.tsbuildinfo
+
+# outputs
+scripts/out/
+
+# OS / editor
 .DS_Store
+.idea/
+.vscode/
