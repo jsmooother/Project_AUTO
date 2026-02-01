@@ -67,6 +67,7 @@ Artifacts are written to `scripts/out/`:
 - **Worker not consuming jobs**: run `pnpm --filter @repo/worker dev`
 - **0 discovered URLs**: add sitemap/seed URLs or enable headless discovery
 - **Headless disabled**: set `HEADLESS_ENABLED=1` (still stubbed)
+- **Older sites**: headless fallback is recommended; probe will record a note when selected.
 
 ## BullMQ lock issues
 
@@ -78,3 +79,8 @@ Mitigation:
 - Worker now uses safer BullMQ settings: `lockDuration=600000`, `stalledInterval=60000`, `maxStalledCount=1`
 - Adjust concurrency via `WORKER_CONCURRENCY` (default 2)
 - If lock is lost, a run_event is emitted with `QUEUE_LOCK_LOST` or `QUEUE_LOCK_RENEW_FAIL`
+
+## Headless usage tracking
+
+When headless is used, runs emit `HEADLESS_USED` with meta `{ provider, mode, reason }`.
+This is intended to make support and debugging easier for older or JS-heavy dealer sites.

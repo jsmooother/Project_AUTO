@@ -9,6 +9,7 @@ import { dataSources, scrapeRuns } from "@repo/db/schema";
 import type { SiteProfile } from "@repo/shared";
 import {
   DEFAULT_PROFILE_LIMITS,
+  DEFAULT_DETAIL_URL_TOKENS,
   type DiscoveryStrategy,
   type SiteProfileDiscovery,
 } from "@repo/shared";
@@ -54,7 +55,8 @@ function learnDetailUrlPattern(sampleUrls: string[]): string[] {
     const segments = path.split("/").filter(Boolean);
     if (segments.length < 2) return [".*"];
     const prefix = segments.slice(0, -1).join("/");
-    return [`.*${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^/]*/?.*`];
+    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [`^https?://[^/]+/${escapedPrefix}/[^/]+/?$`];
   } catch {
     return [".*"];
   }
@@ -70,8 +72,7 @@ function detectVertical(attributesJson: Record<string, unknown>): "vehicle" | "g
 
 function isLikelyDetailUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
-  return tokens.some((t) => lower.includes(t));
+  return DEFAULT_DETAIL_URL_TOKENS.some((t) => lower.includes(t));
 }
 
 export async function processSourceProbe(
@@ -237,6 +238,9 @@ export async function processSourceProbe(
     confidence = 0.1;
     notes.push(`Only ${foundCount} items discovered; consider adding sitemapUrls/seedUrls or enabling headless.`);
   }
+  if (selectedStrategy === "headless_listing") {
+    notes.push("Headless listing selected by probe for dynamic inventory discovery.");
+  }
 
   await emit({
     ...basePayload,
@@ -246,6 +250,16 @@ export async function processSourceProbe(
     message: `Discovery strategy selected: ${selectedStrategy}`,
     meta: { strategy: selectedStrategy, discoveredCount: discoveredItems.length },
   });
+  if (selectedStrategy === "headless_listing") {
+    await emit({
+      ...basePayload,
+      level: "info",
+      stage: "probe",
+      eventCode: "HEADLESS_USED",
+      message: "Headless driver selected for listing discovery",
+      meta: { provider: process.env["HEADLESS_PROVIDER"] ?? "playwright-local", mode: "listing", reason: "probe_strategy" },
+    });
+  }
 
   let extractVertical: "vehicle" | "generic" = "generic";
   const likely = discoveredItems.filter((i) => isLikelyDetailUrl(i.url));
