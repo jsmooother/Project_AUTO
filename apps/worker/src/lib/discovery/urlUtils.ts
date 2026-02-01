@@ -15,6 +15,10 @@ const BLOCKED_EXTENSIONS = new Set([
   ".gif",
   ".webp",
   ".svg",
+  ".js",
+  ".css",
+  ".map",
+  ".ico",
   ".pdf",
   ".zip",
 ]);
@@ -41,11 +45,15 @@ export function sanitizeCandidateUrl(inputUrl: string): boolean {
 export function normalizeUrl(
   inputUrl: string,
   baseUrl: string,
-  options: { stripQuery?: boolean } = {}
+  options: { stripQuery?: boolean; sameHost?: boolean } = {}
 ): string | null {
   try {
     const decoded = inputUrl.replace(/\\u002f/gi, "/").replace(/\\\//g, "/");
     const url = new URL(decoded, baseUrl);
+    if (options.sameHost) {
+      const baseHost = new URL(baseUrl).host;
+      if (url.host !== baseHost) return null;
+    }
     url.hash = "";
     if (options.stripQuery) url.search = "";
     // Remove trailing slash except root

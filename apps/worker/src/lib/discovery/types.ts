@@ -18,6 +18,7 @@ export interface DiscoverResult {
     matchedPatternCount?: number;
     dedupedCount?: number;
     jsonLdCount?: number;
+    endpointHintsCount?: number;
   };
 }
 

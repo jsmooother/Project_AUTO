@@ -7,6 +7,7 @@ import type { SiteProfile } from "@repo/shared";
 import { discoverViaSitemap } from "./sitemap.js";
 import { discoverViaHtmlLinks } from "./htmlLinks.js";
 import { discoverViaEndpointSniff } from "./endpointSniff.js";
+import { discoverViaHeadlessListing } from "./headlessListing.js";
 import type { DiscoverResult, DiscoveryContext } from "./types.js";
 export type { DiscoverResult } from "./types.js";
 
@@ -52,8 +53,7 @@ export async function discover(input: DiscoverInput): Promise<DiscoverResult> {
       }
       break;
     case "headless_listing":
-      // Use headless driver in engine or delegate to separate module; for MVP return []
-      items = [];
+      items = await discoverViaHeadlessListing(driver, profile, ctx);
       break;
     default:
       items = [];

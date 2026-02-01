@@ -14,11 +14,12 @@ import {
 } from "@repo/shared";
 import { JOB_TYPES, type QueuedJob } from "@repo/queue";
 import { createRunEventsWriter } from "@repo/observability/runEvents";
-import { createHttpDriver } from "../lib/drivers/index.js";
+import { createHttpDriver, createHeadlessDriver } from "../lib/drivers/index.js";
 import { getDiscoveryStrategyOrder } from "../lib/discovery/index.js";
 import { discoverViaSitemap } from "../lib/discovery/sitemap.js";
 import { discoverViaHtmlLinks } from "../lib/discovery/htmlLinks.js";
 import { discoverViaEndpointSniff } from "../lib/discovery/endpointSniff.js";
+import { discoverViaHeadlessListing } from "../lib/discovery/headlessListing.js";
 import { extract } from "../lib/extractors/index.js";
 import type { SiteProfileExtract, SiteProfileFetch } from "@repo/shared";
 
@@ -65,6 +66,12 @@ function detectVertical(attributesJson: Record<string, unknown>): "vehicle" | "g
     if (attributesJson[k] != null) return "vehicle";
   }
   return "generic";
+}
+
+function isLikelyDetailUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
+  return tokens.some((t) => lower.includes(t));
 }
 
 export async function processSourceProbe(
@@ -144,6 +151,8 @@ export async function processSourceProbe(
   const strategies = getDiscoveryStrategyOrder();
   let selectedStrategy: DiscoveryStrategy = "unknown";
   let discoveredItems: Array<{ sourceItemId: string; url: string }> = [];
+  let fallbackItems: Array<{ sourceItemId: string; url: string }> = [];
+  let fallbackStrategy: DiscoveryStrategy = "unknown";
   let selectedMeta: Record<string, unknown> | undefined;
   const driver = createHttpDriver();
 
@@ -162,21 +171,64 @@ export async function processSourceProbe(
         const result = await discoverViaEndpointSniff(driver, profile, ctx);
         items = result.items;
         selectedMeta = result.meta;
+      } else if (strategy === "headless_listing") {
+        const ctx = { baseUrl, origin: new URL(baseUrl).origin };
+        const headless = createHeadlessDriver();
+        items = await discoverViaHeadlessListing(headless, profile, ctx);
       }
-      if (items.length > discoveredItems.length) {
-        selectedStrategy = strategy;
-        discoveredItems = items;
+      if (items.length > fallbackItems.length) {
+        fallbackItems = items;
+        fallbackStrategy = strategy;
       }
-      if (items.length >= MIN_ITEMS_STRONG) break;
+      if (items.length > 0) {
+        // Validate that this strategy yields at least one detail-like URL
+        const candidates = items.slice(0, 8).map((i) => i.url);
+        let validCount = 0;
+        for (const url of candidates) {
+          try {
+            const res = await driver.fetch(url, { timeoutMs: 10_000 });
+            if (res.status !== 200 || !res.body) continue;
+            const extracted = extract({
+              profile: {
+                profileVersion: 1,
+                probe: { testedAt: "", confidence: 0, notes: [] },
+                discovery: profile.discovery,
+                fetch: { driver: "http" },
+                extract: { vertical: "generic", strategy: "dom" },
+                limits: DEFAULT_PROFILE_LIMITS,
+              },
+              fetchResult: res,
+            });
+            if (extracted.baseFields.title || extracted.imageUrls.length >= 1) {
+              validCount += 1;
+              break;
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        if (validCount > 0) {
+          selectedStrategy = strategy;
+          discoveredItems = items;
+          if (items.length >= MIN_ITEMS_STRONG) break;
+        }
+      }
     } catch (_) {
       /* try next strategy */
     }
+  }
+  if (selectedStrategy === "unknown" && fallbackItems.length > 0) {
+    discoveredItems = fallbackItems;
+    selectedStrategy = fallbackStrategy;
   }
 
   const foundCount = discoveredItems.length;
   let confidence = 0.1;
   const notes: string[] = [];
-  if (foundCount >= MIN_ITEMS_STRONG) {
+  if (selectedStrategy === "unknown") {
+    confidence = 0.1;
+    notes.push("No detail-like items discovered; add sitemapUrls/seedUrls or enable headless discovery.");
+  } else if (foundCount >= MIN_ITEMS_STRONG) {
     confidence = 0.9;
   } else if (foundCount >= MIN_ITEMS_WEAK) {
     confidence = 0.5;
@@ -184,9 +236,6 @@ export async function processSourceProbe(
   } else if (foundCount > 0) {
     confidence = 0.1;
     notes.push(`Only ${foundCount} items discovered; consider adding sitemapUrls/seedUrls or enabling headless.`);
-  } else {
-    selectedStrategy = "unknown";
-    notes.push("No items discovered; add sitemapUrls/seedUrls or enable headless discovery.");
   }
 
   await emit({
@@ -199,7 +248,10 @@ export async function processSourceProbe(
   });
 
   let extractVertical: "vehicle" | "generic" = "generic";
-  const detailCandidates = discoveredItems.slice(0, 12).map((i) => i.url);
+  const likely = discoveredItems.filter((i) => isLikelyDetailUrl(i.url));
+  const detailCandidates = (likely.length > 0 ? likely : discoveredItems)
+    .slice(0, 20)
+    .map((i) => i.url);
   const validDetailUrls: string[] = [];
   let detailUrlPatterns: string[] = [];
 
@@ -234,6 +286,11 @@ export async function processSourceProbe(
 
   if (validDetailUrls.length > 0) {
     detailUrlPatterns = learnDetailUrlPattern(validDetailUrls);
+  } else {
+    const likelyUrls = discoveredItems.filter((i) => isLikelyDetailUrl(i.url)).slice(0, SAMPLE_DETAIL_COUNT).map((i) => i.url);
+    if (likelyUrls.length > 0) {
+      detailUrlPatterns = learnDetailUrlPattern(likelyUrls);
+    }
   }
 
   const discovery: SiteProfileDiscovery = {

@@ -4,3 +4,4 @@ export type { DiscoveredItem, DiscoveryContext } from "./types.js";
 export { discoverViaSitemap } from "./sitemap.js";
 export { discoverViaHtmlLinks } from "./htmlLinks.js";
 export { discoverViaEndpointSniff } from "./endpointSniff.js";
+export { discoverViaHeadlessListing } from "./headlessListing.js";

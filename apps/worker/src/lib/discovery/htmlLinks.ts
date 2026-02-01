@@ -23,6 +23,12 @@ function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean
   return false;
 }
 
+function isLikelyDetailUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
+  return tokens.some((t) => lower.includes(t));
+}
+
 export async function discoverViaHtmlLinks(
   driver: Driver,
   profile: SiteProfile,
@@ -63,9 +69,13 @@ export async function discoverViaHtmlLinks(
     while ((m = HREF_REGEX.exec(res.body)) !== null) {
       const href = m[1]?.trim();
       if (!href || !sanitizeCandidateUrl(href)) continue;
-      const absolute = normalizeUrl(href, url);
+      const absolute = normalizeUrl(href, url, { sameHost: true });
       if (!absolute) continue;
-      if (!matchesDetailPattern(absolute, detailUrlPatterns)) continue;
+      if (detailUrlPatterns.length === 0 || (detailUrlPatterns.length === 1 && detailUrlPatterns[0] === ".*")) {
+        if (!isLikelyDetailUrl(absolute)) continue;
+      } else if (!matchesDetailPattern(absolute, detailUrlPatterns)) {
+        continue;
+      }
       const { id } = extractSourceItemId(absolute, idFromUrl);
       const uniqueId = ensureUniqueId(id, absolute, seen);
       if (seen.has(uniqueId)) continue;
@@ -87,7 +97,7 @@ export async function discoverViaHtmlLinks(
     const pagePath = res.body.match(/href=["']([^"']*\/page\/\d+\/?[^"']*)["']/i);
     if (pagePath?.[1]) nextCandidates.push(pagePath[1]);
     for (const cand of nextCandidates) {
-      const nextUrl = normalizeUrl(cand, url);
+      const nextUrl = normalizeUrl(cand, url, { sameHost: true });
       if (nextUrl && !fetched.has(new URL(nextUrl).href)) {
         toFetch.push(nextUrl);
       }
@@ -104,7 +114,7 @@ export async function discoverViaHtmlLinks(
         if (ENDPOINT_HINT_REGEX.test(href)) hints.push(href);
       }
       for (const hint of hints.slice(0, 5)) {
-        const endpointUrl = normalizeUrl(hint, url);
+        const endpointUrl = normalizeUrl(hint, url, { sameHost: true });
         if (!endpointUrl) continue;
         try {
           const endpointRes = await driver.fetch(endpointUrl, {
@@ -116,9 +126,13 @@ export async function discoverViaHtmlLinks(
           while ((m3 = HREF_REGEX.exec(endpointRes.body)) !== null) {
             const href2 = m3[1]?.trim();
             if (!href2 || !sanitizeCandidateUrl(href2)) continue;
-            const absolute = normalizeUrl(href2, endpointUrl);
+            const absolute = normalizeUrl(href2, endpointUrl, { sameHost: true });
             if (!absolute) continue;
-            if (!matchesDetailPattern(absolute, detailUrlPatterns)) continue;
+            if (detailUrlPatterns.length === 0 || (detailUrlPatterns.length === 1 && detailUrlPatterns[0] === ".*")) {
+              if (!isLikelyDetailUrl(absolute)) continue;
+            } else if (!matchesDetailPattern(absolute, detailUrlPatterns)) {
+              continue;
+            }
             const { id } = extractSourceItemId(absolute, idFromUrl);
             const uniqueId = ensureUniqueId(id, absolute, seen);
             if (seen.has(uniqueId)) continue;

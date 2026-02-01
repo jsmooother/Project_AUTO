@@ -18,6 +18,7 @@ const ABS_URL_REGEX = /https?:\/\/[^\s"'<>]+/gi;
 const ESCAPED_URL_REGEX = /https?:\\\/\\\/[^\s"'<>]+/gi;
 const JSON_LD_REGEX = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
 const RAW_RELATIVE_REGEX = /"\/[^"']+"/g;
+const ENDPOINT_HINT_REGEX = /(wp-json|admin-ajax\.php|\/api\/|\.json|ajax)/i;
 
 const MAX_CANDIDATES_PER_SEED = 5000;
 const MAX_CANDIDATES_TOTAL = 20000;
@@ -32,6 +33,12 @@ function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean
     }
   }
   return false;
+}
+
+function isLikelyDetailUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
+  return tokens.some((t) => lower.includes(t));
 }
 
 function harvestUrlsFromHtml(html: string): string[] {
@@ -117,6 +124,7 @@ export async function discoverViaEndpointSniff(
   let rawCandidates = 0;
   let matchedPatternCount = 0;
   let jsonLdCount = 0;
+  let endpointHintsCount = 0;
   const maxItems = profile.limits?.maxItems ?? 500;
   const maxDurationMs = profile.limits?.maxDurationMs ?? 300_000;
   const startedAt = Date.now();
@@ -136,6 +144,17 @@ export async function discoverViaEndpointSniff(
 
     const combined = [...harvested, ...jsonLdUrls];
     rawCandidates += combined.length;
+    const endpointHints = combined.filter((u) => ENDPOINT_HINT_REGEX.test(u)).slice(0, 5);
+    if (endpointHints.length === 0) {
+      try {
+        const origin = new URL(seedUrl).origin;
+        endpointHints.push(`${origin}/wp-json/`);
+        endpointHints.push(`${origin}/wp-json/wp/v2/`);
+      } catch {
+        /* ignore */
+      }
+    }
+    endpointHintsCount += endpointHints.length;
 
     let processed = 0;
     for (const candidate of combined) {
@@ -143,15 +162,51 @@ export async function discoverViaEndpointSniff(
       if (items.length >= maxItems) break;
       processed += 1;
       if (!sanitizeCandidateUrl(candidate)) continue;
-      const normalized = normalizeUrl(candidate, seedUrl);
+      const normalized = normalizeUrl(candidate, seedUrl, { sameHost: true });
       if (!normalized) continue;
-      if (!matchesDetailPattern(normalized, detailUrlPatterns)) continue;
+      if (detailUrlPatterns.length === 0 || (detailUrlPatterns.length === 1 && detailUrlPatterns[0] === ".*")) {
+        if (!isLikelyDetailUrl(normalized)) continue;
+      } else if (!matchesDetailPattern(normalized, detailUrlPatterns)) {
+        continue;
+      }
       matchedPatternCount += 1;
       const { id } = extractSourceItemId(normalized, idFromUrl);
       const uniqueId = ensureUniqueId(id, normalized, seen);
       if (seen.has(uniqueId)) continue;
       seen.set(uniqueId, normalized);
       items.push({ sourceItemId: uniqueId, url: normalized });
+    }
+
+    // If load-more endpoints are hinted, fetch them and harvest detail URLs
+    for (const hint of endpointHints) {
+      if (items.length >= maxItems) break;
+      const endpointUrl = normalizeUrl(hint, seedUrl, { sameHost: true });
+      if (!endpointUrl) continue;
+      try {
+        const endpointRes = await driver.fetch(endpointUrl, {
+          timeoutMs: profile.fetch?.http?.timeoutMs ?? 15_000,
+        });
+        if (endpointRes.status !== 200 || !endpointRes.body) continue;
+        const endpointCandidates = harvestUrlsFromHtml(endpointRes.body);
+        for (const candidate of endpointCandidates) {
+          if (!sanitizeCandidateUrl(candidate)) continue;
+          const normalized = normalizeUrl(candidate, endpointUrl, { sameHost: true });
+          if (!normalized) continue;
+          if (detailUrlPatterns.length === 0 || (detailUrlPatterns.length === 1 && detailUrlPatterns[0] === ".*")) {
+            if (!isLikelyDetailUrl(normalized)) continue;
+          } else if (!matchesDetailPattern(normalized, detailUrlPatterns)) {
+            continue;
+          }
+          const { id } = extractSourceItemId(normalized, idFromUrl);
+          const uniqueId = ensureUniqueId(id, normalized, seen);
+          if (seen.has(uniqueId)) continue;
+          seen.set(uniqueId, normalized);
+          items.push({ sourceItemId: uniqueId, url: normalized });
+          if (items.length >= maxItems) break;
+        }
+      } catch {
+        /* best-effort */
+      }
     }
   }
 
@@ -165,6 +220,7 @@ export async function discoverViaEndpointSniff(
       matchedPatternCount,
       dedupedCount: items.length,
       jsonLdCount,
+      endpointHintsCount,
     },
   };
 }

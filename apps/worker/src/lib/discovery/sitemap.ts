@@ -9,6 +9,12 @@ import { extractSourceItemId, normalizeUrl, ensureUniqueId } from "./urlUtils.js
 
 const LOC_REGEX = /<loc>\s*([^<]+)\s*<\/loc>/gi;
 
+function isLikelyDetailUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
+  return tokens.some((t) => lower.includes(t));
+}
+
 function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean {
   if (detailUrlPatterns.length === 0) return true;
   for (const pattern of detailUrlPatterns) {
@@ -38,7 +44,13 @@ export async function discoverViaSitemap(
   const seen = new Map<string, string>();
   const items: DiscoveredItem[] = [];
 
-  for (const sitemapUrl of sitemapUrls) {
+  const pending = [...sitemapUrls];
+  const seenSitemaps = new Set<string>();
+  while (pending.length > 0) {
+    const sitemapUrl = pending.shift();
+    if (!sitemapUrl) break;
+    if (seenSitemaps.has(sitemapUrl)) continue;
+    seenSitemaps.add(sitemapUrl);
     if (Date.now() - startedAt > maxDurationMs) break;
     if (items.length >= maxItems) break;
     const res = await driver.fetch(sitemapUrl, {
@@ -50,9 +62,17 @@ export async function discoverViaSitemap(
     while ((m = LOC_REGEX.exec(res.body)) !== null) {
       const raw = m[1]?.trim();
       if (!raw) continue;
-      const normalized = normalizeUrl(raw, ctx.origin);
+      const normalized = normalizeUrl(raw, ctx.origin, { sameHost: true });
       if (!normalized) continue;
-      if (!matchesDetailPattern(normalized, detailUrlPatterns)) continue;
+      if (normalized.endsWith(".xml")) {
+        pending.push(normalized);
+        continue;
+      }
+      if (detailUrlPatterns.length === 0 || (detailUrlPatterns.length === 1 && detailUrlPatterns[0] === ".*")) {
+        if (!isLikelyDetailUrl(normalized)) continue;
+      } else if (!matchesDetailPattern(normalized, detailUrlPatterns)) {
+        continue;
+      }
       const { id } = extractSourceItemId(normalized, idFromUrl);
       const uniqueId = ensureUniqueId(id, normalized, seen);
       if (seen.has(uniqueId)) continue;
