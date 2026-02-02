@@ -1,4 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_HTML_BYTES_FOR_PARSE = 200_000; // 200 KB
 
 export type HttpTrace = {
   url: string;
@@ -6,13 +7,42 @@ export type HttpTrace = {
   statusText?: string;
   durationMs: number;
   error?: string;
+  htmlTruncated?: boolean;
+  originalBytes?: number;
+  truncatedBytes?: number;
 };
+
+/**
+ * Truncates HTML string to max bytes (UTF-8 encoding). Returns truncated string and truncation info.
+ */
+export function truncateHtmlForParse(html: string, maxBytes: number): {
+  truncated: string;
+  wasTruncated: boolean;
+  originalBytes: number;
+  truncatedBytes: number;
+} {
+  const originalBytes = new TextEncoder().encode(html).length;
+  if (originalBytes <= maxBytes) {
+    return { truncated: html, wasTruncated: false, originalBytes, truncatedBytes: originalBytes };
+  }
+  // Truncate by character, then check byte length
+  let truncated = html;
+  let truncatedBytes = originalBytes;
+  while (truncatedBytes > maxBytes && truncated.length > 0) {
+    truncated = truncated.slice(0, -1);
+    truncatedBytes = new TextEncoder().encode(truncated).length;
+  }
+  return { truncated, wasTruncated: true, originalBytes, truncatedBytes };
+}
 
 export async function fetchWithTrace(
   url: string,
-  options: { timeoutMs?: number } = {}
+  options: { timeoutMs?: number; maxHtmlBytes?: number } = {}
 ): Promise<{ body: string; trace: HttpTrace }> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const maxHtmlBytes =
+    options.maxHtmlBytes ??
+    (Number(process.env["MAX_HTML_BYTES_FOR_PARSE"] ?? DEFAULT_MAX_HTML_BYTES_FOR_PARSE) || DEFAULT_MAX_HTML_BYTES_FOR_PARSE);
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -22,9 +52,10 @@ export async function fetchWithTrace(
       signal: controller.signal,
       headers: { "User-Agent": "RepoWorker/1.0" },
     });
-    const body = await res.text();
+    const fullBody = await res.text();
     clearTimeout(timeout);
     const durationMs = Date.now() - start;
+    const { truncated: body, wasTruncated, originalBytes, truncatedBytes } = truncateHtmlForParse(fullBody, maxHtmlBytes);
     return {
       body,
       trace: {
@@ -32,6 +63,7 @@ export async function fetchWithTrace(
         status: res.status,
         statusText: res.statusText,
         durationMs,
+        ...(wasTruncated ? { htmlTruncated: true, originalBytes, truncatedBytes } : {}),
       },
     };
   } catch (err) {
