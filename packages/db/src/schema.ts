@@ -256,3 +256,20 @@ export const supportCases = pgTable("support_cases", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const onboardingStates = pgTable(
+  "onboarding_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    companyInfoCompleted: boolean("company_info_completed").notNull().default(false),
+    budgetInfoCompleted: boolean("budget_info_completed").notNull().default(false),
+    companyName: text("company_name"),
+    companyWebsite: text("company_website"),
+    monthlyBudgetAmount: numeric("monthly_budget_amount", { precision: 12, scale: 2 }),
+    budgetCurrency: text("budget_currency").default("USD"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);

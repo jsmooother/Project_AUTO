@@ -3,6 +3,8 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { requireCustomerContext } from "./middleware/customerContext.js";
 import { healthRoutes } from "./routes/health.js";
+import { authRoutes } from "./routes/auth.js";
+import { onboardingRoutes } from "./routes/onboarding.js";
 import { dataSourceRoutes } from "./routes/dataSources.js";
 import { runsRoutes } from "./routes/runs.js";
 import { supportCaseRoutes } from "./routes/supportCases.js";
@@ -14,11 +16,13 @@ await app.register(cors, { origin: true });
 
 app.addHook("preHandler", (request, reply, done) => {
   const path = request.url?.split("?")[0];
-  if (path === "/health") return done();
+  if (path === "/health" || path === "/signup") return done();
   requireCustomerContext(request, reply, done);
 });
 
 await app.register(healthRoutes);
+await app.register(authRoutes);
+await app.register(onboardingRoutes);
 await app.register(dataSourceRoutes);
 await app.register(runsRoutes, { prefix: "" });
 await app.register(itemsRoutes);
