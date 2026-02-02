@@ -35,6 +35,15 @@ export const users = pgTable("users", {
   customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
   role: text("role").notNull(),
+  passwordHash: text("password_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessions = pgTable("sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -255,4 +264,133 @@ export const supportCases = pgTable("support_cases", {
   severity: text("severity"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const onboardingStates = pgTable(
+  "onboarding_states",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    companyInfoCompleted: boolean("company_info_completed").notNull().default(false),
+    budgetInfoCompleted: boolean("budget_info_completed").notNull().default(false),
+    companyName: text("company_name"),
+    companyWebsite: text("company_website"),
+    monthlyBudgetAmount: numeric("monthly_budget_amount", { precision: 12, scale: 2 }),
+    budgetCurrency: text("budget_currency").default("USD"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
+export const inventorySources = pgTable(
+  "inventory_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    websiteUrl: text("website_url").notNull(),
+    status: text("status").notNull().default("active"),
+    lastCrawledAt: timestamp("last_crawled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
+export const crawlRuns = pgTable("crawl_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  inventorySourceId: uuid("inventory_source_id")
+    .notNull()
+    .references(() => inventorySources.id, { onDelete: "cascade" }),
+  trigger: text("trigger").notNull().default("manual"),
+  status: text("status").notNull().default("queued"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inventoryItems = pgTable(
+  "inventory_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    inventorySourceId: uuid("inventory_source_id")
+      .notNull()
+      .references(() => inventorySources.id, { onDelete: "cascade" }),
+    externalId: text("external_id").notNull(),
+    title: text("title"),
+    url: text("url"),
+    price: integer("price"),
+    status: text("status").notNull().default("active"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId, t.inventorySourceId, t.externalId)]
+);
+
+// Milestone 3: Templates + Approval workflow
+export const adTemplates = pgTable("ad_templates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  aspectRatio: text("aspect_ratio").notNull().default("1:1"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const adTemplateConfigs = pgTable(
+  "ad_template_configs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    templateKey: text("template_key").notNull(),
+    brandName: text("brand_name"),
+    primaryColor: text("primary_color"),
+    logoUrl: text("logo_url"),
+    headlineStyle: text("headline_style"),
+    status: text("status").notNull().default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
+export const adPreviews = pgTable("ad_previews", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  templateConfigId: uuid("template_config_id")
+    .notNull()
+    .references(() => adTemplateConfigs.id, { onDelete: "cascade" }),
+  inventoryItemId: uuid("inventory_item_id").references(() => inventoryItems.id, { onDelete: "set null" }),
+  previewType: text("preview_type").notNull().default("html"),
+  assetUrl: text("asset_url"),
+  htmlContent: text("html_content"),
+  meta: jsonb("meta"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const previewRuns = pgTable("preview_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  templateConfigId: uuid("template_config_id")
+    .notNull()
+    .references(() => adTemplateConfigs.id, { onDelete: "cascade" }),
+  trigger: text("trigger").notNull().default("manual"),
+  status: text("status").notNull().default("queued"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const approvals = pgTable("approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  templateConfigId: uuid("template_config_id")
+    .notNull()
+    .references(() => adTemplateConfigs.id, { onDelete: "cascade" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  approvedByUserId: uuid("approved_by_user_id"),
+  notes: text("notes"),
 });

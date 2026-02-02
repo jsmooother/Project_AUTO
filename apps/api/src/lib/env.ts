@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 let dir = join(__dirname, "..", "..", "..");
 while (dir !== "/") {
   if (existsSync(join(dir, "apps")) && existsSync(join(dir, "packages"))) {
-    dotenv.config({ path: join(dir, ".env"), override: true });
+    dotenv.config({ path: join(dir, ".env"), override: false });
     break;
   }
   dir = join(dir, "..");

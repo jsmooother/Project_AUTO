@@ -4,6 +4,8 @@ import { JOB_TYPES } from "@repo/queue";
 import { processScrapeTest } from "./jobs/scrapeTest.js";
 import { processSourceProbe } from "./jobs/sourceProbe.js";
 import { processScrapeProd } from "./jobs/scrapeProd.js";
+import { processCrawlStub } from "./jobs/crawlStub.js";
+import { processPreviewGen } from "./jobs/previewGen.js";
 
 const workers: Array<{ close: () => Promise<void> }> = [];
 
@@ -15,6 +17,12 @@ workers.push(
 );
 workers.push(
   queue.createWorker(JOB_TYPES.SCRAPE_PROD, processScrapeProd)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.CRAWL, processCrawlStub)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.PREVIEW, processPreviewGen)
 );
 
 async function shutdown(): Promise<void> {

@@ -1,0 +1,59 @@
+:root {
+  /* Project Auto design tokens */
+  --pa-dark: #1a1a1a;
+  --pa-dark-nav: #0f172a;
+  --pa-gray: #6b7280;
+  --pa-gray-light: #9ca3af;
+  --pa-gray-bg: #f3f4f6;
+  --pa-blue: #3b82f6;
+  --pa-blue-light: #60a5fa;
+  --pa-purple: #8b5cf6;
+  --pa-green: #10b981;
+  --pa-white: #ffffff;
+  --pa-border: #e5e7eb;
+  --pa-radius: 8px;
+  --pa-radius-lg: 12px;
+  --pa-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: var(--pa-font);
+}
+
+body {
+  color: var(--pa-dark);
+  background: var(--pa-white);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Button-style links: no underline on hover */
+a.btn-style {
+  text-decoration: none;
+}
+a.btn-style:hover {
+  text-decoration: none;
+  opacity: 0.9;
+}

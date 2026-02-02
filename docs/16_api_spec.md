@@ -1,6 +1,63 @@
 # API Spec (apps/api)
 
-## Goal
+## Current endpoints (Phases 1–4)
+
+All customer-scoped endpoints require session auth (cookie) or `x-customer-id` header. Admin endpoints require `x-admin-key` (see [29_admin_testing.md](29_admin_testing.md)).
+
+### Auth (no x-customer-id)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /signup | Create user + customer; body: `{ email, name, password }` |
+| POST | /auth/login | Login; body: `{ email, password }`; sets session cookie |
+| POST | /auth/logout | Clear session |
+| GET | /auth/me | Return `{ customerId, userId, email }` if authenticated |
+
+### Onboarding (x-customer-id)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /onboarding/status | Status, companyInfoCompleted, budgetInfoCompleted |
+| POST | /onboarding/company | Body: `{ companyName, companyWebsite? }` |
+| POST | /onboarding/budget | Body: `{ monthlyBudgetAmount, budgetCurrency }` |
+
+### Inventory (x-customer-id)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /inventory/source | Body: `{ websiteUrl }`; create/update active source |
+| GET | /inventory/items | `{ data: items[], source?: { id, websiteUrl } }` |
+
+### Runs (x-customer-id)
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /runs/crawl | Enqueue crawl; returns `{ runId, jobId }` |
+| GET | /runs?type=crawl\|preview&limit=50 | List crawl or preview runs |
+
+### Templates (x-customer-id)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /templates | List ad templates |
+| GET | /templates/config | Current config or null |
+| POST | /templates/config | Upsert; body: `{ templateKey, brandName?, primaryColor?, logoUrl? }` |
+| POST | /templates/previews/run | Enqueue preview job |
+| GET | /templates/previews | List previews |
+| GET | /templates/previews/:id/html | HTML content (text) |
+| POST | /templates/approve | Approve current config |
+
+### Admin (x-admin-key; see Admin auth in 29_admin_testing.md)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /admin/customers | List customers (search, status filter) |
+| GET | /admin/customers/:id | Customer detail + stats |
+| POST | /admin/customers/:customerId/runs/crawl | Trigger crawl for customer (dev ops); returns `{ runId, jobId }` |
+| POST | /admin/customers/:customerId/runs/preview | Trigger preview generation for customer (dev ops); returns `{ runId, jobId }` |
+| POST | /admin/demo/seed | Create full demo customer (dev only; NODE_ENV=development). Returns `{ customerId, userId, email, password }`. |
+| POST | /admin/customers/:customerId/reset | Reset customer data: delete runs, previews, items, approvals; set template config to draft (dev only). |
+| GET | /admin/runs | All runs (type, status, customerId filter) |
+| GET | /admin/runs/:id | Run detail |
+| GET | /admin/inventory-sources | All inventory sources |
+
+---
+
+## Goal (original spec)
 Provide minimal HTTP API to:
 - manage data sources
 - trigger test runs (enqueue SCRAPE_TEST)
