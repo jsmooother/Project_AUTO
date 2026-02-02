@@ -70,6 +70,9 @@ See:
    - From repo root: `pnpm --filter @repo/web dev:clean` (clears `.next` and starts web on 3000).  
    - Or: `cd apps/web && rm -rf .next && pnpm dev`, then open http://localhost:3000/login.
 
+   **If web build fails with `404` for `@next/swc-darwin-arm64` (or similar SWC tarball):**  
+   Next.js and SWC versions must match. See `docs/35_next_swc_build.md` for pinning and troubleshooting. Use `pnpm --filter @repo/web build:clean` for a clean build.
+
    **If you see 500 Internal Server Error (or EADDRINUSE on restart):**
    - Run: `./scripts/restart-dev.sh` to kill processes on 3000/3001/3002 and clear `.next` cache.
    - Then start dev servers again (API, worker, web).
