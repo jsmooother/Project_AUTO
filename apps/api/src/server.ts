@@ -7,6 +7,8 @@ import { authRoutes } from "./routes/auth.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { dataSourceRoutes } from "./routes/dataSources.js";
 import { runsRoutes } from "./routes/runs.js";
+import { crawlRunsRoutes } from "./routes/crawlRuns.js";
+import { inventoryRoutes } from "./routes/inventory.js";
 import { supportCaseRoutes } from "./routes/supportCases.js";
 import { itemsRoutes } from "./routes/items.js";
 
@@ -25,6 +27,8 @@ await app.register(authRoutes);
 await app.register(onboardingRoutes);
 await app.register(dataSourceRoutes);
 await app.register(runsRoutes, { prefix: "" });
+await app.register(crawlRunsRoutes);
+await app.register(inventoryRoutes);
 await app.register(itemsRoutes);
 await app.register(supportCaseRoutes);
 

@@ -273,3 +273,49 @@ export const onboardingStates = pgTable(
   },
   (t) => [unique().on(t.customerId)]
 );
+
+export const inventorySources = pgTable(
+  "inventory_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    websiteUrl: text("website_url").notNull(),
+    status: text("status").notNull().default("active"),
+    lastCrawledAt: timestamp("last_crawled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
+export const crawlRuns = pgTable("crawl_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  inventorySourceId: uuid("inventory_source_id")
+    .notNull()
+    .references(() => inventorySources.id, { onDelete: "cascade" }),
+  trigger: text("trigger").notNull().default("manual"),
+  status: text("status").notNull().default("queued"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inventoryItems = pgTable(
+  "inventory_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    inventorySourceId: uuid("inventory_source_id")
+      .notNull()
+      .references(() => inventorySources.id, { onDelete: "cascade" }),
+    externalId: text("external_id").notNull(),
+    title: text("title"),
+    url: text("url"),
+    price: integer("price"),
+    status: text("status").notNull().default("active"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId, t.inventorySourceId, t.externalId)]
+);

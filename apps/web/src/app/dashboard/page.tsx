@@ -17,6 +17,9 @@ interface OnboardingStatus {
 export default function DashboardPage() {
   const router = useRouter();
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [websiteSource, setWebsiteSource] = useState<{ websiteUrl: string } | null>(null);
+  const [runNowLoading, setRunNowLoading] = useState(false);
+  const [runNowError, setRunNowError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,28 +29,49 @@ export default function DashboardPage() {
       router.push("/signup");
       return;
     }
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-    fetch("http://localhost:3001/onboarding/status", {
-      headers: {
-        "x-customer-id": customerId,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error("Failed to fetch onboarding status");
-        }
+    Promise.all([
+      fetch(`${apiUrl}/onboarding/status`, { headers: { "x-customer-id": customerId } }).then(async (res) => {
+        if (!res.ok) throw new Error("Failed to fetch onboarding status");
         return res.json();
+      }),
+      fetch(`${apiUrl}/inventory/items`, { headers: { "x-customer-id": customerId } }).then(async (res) => {
+        if (!res.ok) return { source: null };
+        const data = await res.json();
+        return { source: data.source ?? null };
+      }),
+    ])
+      .then(([onboarding, inventory]) => {
+        setOnboardingStatus(onboarding);
+        setWebsiteSource(inventory.source);
       })
-      .then((data) => {
-        setOnboardingStatus(data);
-      })
-      .catch((err) => {
-        setError(err.message);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [router]);
+
+  const handleRunNow = async () => {
+    const customerId = localStorage.getItem("customerId");
+    if (!customerId) return;
+    setRunNowError(null);
+    setRunNowLoading(true);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    try {
+      const res = await fetch(`${apiUrl}/runs/crawl`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-customer-id": customerId },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error?.message || "Failed to start crawl");
+      }
+      router.push("/runs");
+    } catch (err) {
+      setRunNowError(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setRunNowLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -159,8 +183,58 @@ export default function DashboardPage() {
       {isCompleted && (
         <div style={{ marginTop: "2rem", padding: "1rem", background: "#efe", borderRadius: "4px" }}>
           <p>🎉 Onboarding complete! You're all set.</p>
+          <p style={{ marginTop: "0.5rem" }}>
+            Optional: <Link href="/connect-website">Connect your website</Link> to run inventory crawls.
+          </p>
         </div>
       )}
+
+      <div style={{ marginTop: "2rem" }}>
+        <h2>Website &amp; crawl</h2>
+        <div style={{ padding: "1rem", border: "1px solid #ccc", borderRadius: "8px", marginTop: "0.5rem" }}>
+          <p>
+            <strong>Website:</strong>{" "}
+            {websiteSource ? (
+              <>
+                Connected — <a href={websiteSource.websiteUrl} target="_blank" rel="noopener noreferrer">{websiteSource.websiteUrl}</a>
+                {" · "}
+                <Link href="/connect-website">Change</Link>
+              </>
+            ) : (
+              <>
+                Not connected.{" "}
+                <Link href="/connect-website" style={{ color: "#0070f3" }}>Connect a website</Link>
+              </>
+            )}
+          </p>
+          {websiteSource && (
+            <div style={{ marginTop: "1rem" }}>
+              <button
+                type="button"
+                onClick={handleRunNow}
+                disabled={runNowLoading}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: runNowLoading ? "#ccc" : "#0070f3",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: runNowLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {runNowLoading ? "Starting…" : "Run now"}
+              </button>
+              {runNowError && (
+                <span style={{ marginLeft: "1rem", color: "#c00" }}>{runNowError}</span>
+              )}
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: "1rem", display: "flex", gap: "1rem" }}>
+          <Link href="/inventory" style={{ color: "#0070f3", textDecoration: "none" }}>Inventory</Link>
+          <Link href="/runs" style={{ color: "#0070f3", textDecoration: "none" }}>Runs / Automation</Link>
+        </div>
+      </div>
     </main>
   );
 }

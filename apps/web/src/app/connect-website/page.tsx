@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-export default function BudgetOnboardingPage() {
+export default function ConnectWebsitePage() {
   const router = useRouter();
-  const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState("");
-  const [budgetCurrency, setBudgetCurrency] = useState("USD");
+  const [websiteUrl, setWebsiteUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,33 +27,20 @@ export default function BudgetOnboardingPage() {
       return;
     }
 
-    const amount = parseFloat(monthlyBudgetAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setError("Please enter a valid budget amount");
-      setLoading(false);
-      return;
-    }
-
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/onboarding/budget`, {
+      const res = await fetch(`${apiUrl}/inventory/source`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-customer-id": customerId,
         },
-        body: JSON.stringify({
-          monthlyBudgetAmount: amount,
-          budgetCurrency,
-        }),
+        body: JSON.stringify({ websiteUrl: websiteUrl.trim() }),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error?.message || "Failed to update budget information");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error?.message || "Failed to connect website");
       }
-
-      // Redirect to dashboard
       router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -65,8 +51,8 @@ export default function BudgetOnboardingPage() {
 
   return (
     <main style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h1>Budget Information</h1>
-      <p>Tell us about your monthly advertising budget</p>
+      <h1>Connect website</h1>
+      <p>Add your inventory website URL. You can skip this and do it later from the dashboard.</p>
 
       {error && (
         <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px", marginBottom: "1rem" }}>
@@ -76,39 +62,19 @@ export default function BudgetOnboardingPage() {
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div>
-          <label htmlFor="budgetCurrency" style={{ display: "block", marginBottom: "0.5rem" }}>
-            Currency
-          </label>
-          <select
-            id="budgetCurrency"
-            value={budgetCurrency}
-            onChange={(e) => setBudgetCurrency(e.target.value)}
-            style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-          >
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-            <option value="CAD">CAD (C$)</option>
-          </select>
-        </div>
-
-        <div>
-          <label htmlFor="monthlyBudgetAmount" style={{ display: "block", marginBottom: "0.5rem" }}>
-            Monthly Budget Amount *
+          <label htmlFor="websiteUrl" style={{ display: "block", marginBottom: "0.5rem" }}>
+            Website URL *
           </label>
           <input
-            id="monthlyBudgetAmount"
-            type="number"
-            step="0.01"
-            min="0"
-            value={monthlyBudgetAmount}
-            onChange={(e) => setMonthlyBudgetAmount(e.target.value)}
+            id="websiteUrl"
+            type="url"
+            value={websiteUrl}
+            onChange={(e) => setWebsiteUrl(e.target.value)}
             required
-            placeholder="0.00"
+            placeholder="https://example.com/inventory"
             style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
           />
         </div>
-
         <div style={{ display: "flex", gap: "1rem" }}>
           <button
             type="button"
@@ -124,7 +90,7 @@ export default function BudgetOnboardingPage() {
               flex: 1,
             }}
           >
-            Cancel
+            Skip
           </button>
           <button
             type="submit"
@@ -140,7 +106,7 @@ export default function BudgetOnboardingPage() {
               flex: 1,
             }}
           >
-            {loading ? "Saving..." : "Save"}
+            {loading ? "Saving..." : "Connect"}
           </button>
         </div>
       </form>
