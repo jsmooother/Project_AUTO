@@ -61,7 +61,7 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { auth } = useAuth();
+  const { auth, clearAuth } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [pills, setPills] = useState<StatusPills | null>(null);
@@ -116,6 +116,7 @@ export default function AppLayout({
 
   const handleLogout = async () => {
     await apiPost("/auth/logout");
+    clearAuth();
     if (typeof window !== "undefined") {
       window.location.href = "/login";
     }

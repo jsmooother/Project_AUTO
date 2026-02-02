@@ -12,6 +12,7 @@ export default function ConnectWebsitePage() {
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
@@ -20,6 +21,7 @@ export default function ConnectWebsitePage() {
     if (!customerId) return;
     setLoading(true);
     setError(null);
+    setErrorHint(null);
     const res = await apiPost(
       "/inventory/source",
       { websiteUrl: websiteUrl.trim() },
@@ -27,7 +29,10 @@ export default function ConnectWebsitePage() {
     );
     setLoading(false);
     if (res.ok) router.push("/dashboard");
-    else setError(res.error);
+    else {
+      setError(res.error);
+      setErrorHint(res.errorDetail?.hint ?? null);
+    }
   };
 
   if (auth.status !== "authenticated") return null;
@@ -38,7 +43,7 @@ export default function ConnectWebsitePage() {
       <p style={{ marginBottom: "1rem", color: "#666" }}>
         Add your inventory website URL. You can skip this and do it later from the dashboard.
       </p>
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} hint={errorHint ?? undefined} />}
       <form
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "500px" }}

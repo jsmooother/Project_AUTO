@@ -70,6 +70,28 @@ export default function AdminRunDetailPage() {
       <p style={{ color: "#666", marginBottom: "1.5rem" }}>
         Status: {run.status} · Trigger: {run.trigger}
       </p>
+
+      {run.errorMessage && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1.25rem",
+            border: "2px solid #dc2626",
+            background: "#fef2f2",
+            borderRadius: "8px",
+            fontFamily: "monospace",
+            fontSize: "0.9rem",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          <strong style={{ display: "block", marginBottom: "0.5rem", color: "#b91c1c" }}>
+            Run error (failure reason)
+          </strong>
+          {run.errorMessage}
+        </div>
+      )}
+
       <div style={{ display: "grid", gap: "1rem", maxWidth: 600 }}>
         <div style={{ padding: "1rem", border: "1px solid #eee", borderRadius: "8px" }}>
           <strong>Customer ID:</strong>{" "}
@@ -81,11 +103,6 @@ export default function AdminRunDetailPage() {
         <div style={{ padding: "1rem", border: "1px solid #eee", borderRadius: "8px" }}>
           <strong>Finished:</strong> {run.finishedAt ? new Date(run.finishedAt).toLocaleString() : "—"}
         </div>
-        {run.errorMessage && (
-          <div style={{ padding: "1rem", border: "1px solid #fcc", background: "#fff5f5", borderRadius: "8px" }}>
-            <strong>Error:</strong> {run.errorMessage}
-          </div>
-        )}
       </div>
     </div>
   );

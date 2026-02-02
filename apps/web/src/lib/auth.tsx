@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiGet } from "./api";
+import { useRouter } from "next/navigation";
+import { apiGet, setOnUnauthorized } from "./api";
 
 export type AuthUser = {
   customerId: string;
@@ -24,9 +25,11 @@ type AuthState =
 const AuthContext = createContext<{
   auth: AuthState;
   refetch: () => Promise<void>;
+  clearAuth: () => void;
 } | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
 
   const refetch = useCallback(async () => {
@@ -39,11 +42,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    setOnUnauthorized(() => {
+      setAuth({ status: "unauthenticated" });
+      router.replace("/login");
+    });
+    return () => setOnUnauthorized(null);
+  }, [router]);
+
+  const clearAuth = useCallback(() => {
+    setAuth({ status: "unauthenticated" });
+  }, []);
+
+  useEffect(() => {
     refetch();
   }, [refetch]);
 
   return (
-    <AuthContext.Provider value={{ auth, refetch }}>
+    <AuthContext.Provider value={{ auth, refetch, clearAuth }}>
       {children}
     </AuthContext.Provider>
   );

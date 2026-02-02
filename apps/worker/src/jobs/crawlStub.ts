@@ -23,7 +23,12 @@ export async function processCrawlStub(
   const { inventorySourceId } = payload;
 
   if (!customerId || !runId || !inventorySourceId) {
-    await job.deadLetter("Missing correlation: customerId, runId and payload.inventorySourceId required");
+    const msg = "Missing correlation: customerId, runId and payload.inventorySourceId required";
+    await db
+      .update(crawlRuns)
+      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+      .where(and(eq(crawlRuns.id, runId), eq(crawlRuns.customerId, customerId)));
+    await job.deadLetter(msg);
     return;
   }
 
@@ -39,13 +44,19 @@ export async function processCrawlStub(
     .limit(1);
 
   if (!source) {
-    await job.deadLetter("Inventory source not found");
+    const msg = "Inventory source not found";
+    await db
+      .update(crawlRuns)
+      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+      .where(and(eq(crawlRuns.id, runId), eq(crawlRuns.customerId, customerId)));
+    await job.deadLetter(msg);
     return;
   }
 
   const now = new Date();
 
   try {
+    console.log(JSON.stringify({ event: "crawl_job_start", runId, customerId, inventorySourceId }));
     await db
       .update(crawlRuns)
       .set({ status: "running", startedAt: now })
@@ -94,9 +105,11 @@ export async function processCrawlStub(
       .set({ lastCrawledAt: new Date() })
       .where(eq(inventorySources.id, source.id));
 
+    console.log(JSON.stringify({ event: "crawl_job_finish", runId, customerId, status: "success" }));
     await job.ack();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    console.log(JSON.stringify({ event: "crawl_job_finish", runId, customerId, status: "failed", errorMessage: message }));
     await db
       .update(crawlRuns)
       .set({

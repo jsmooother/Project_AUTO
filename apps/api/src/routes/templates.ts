@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, gte } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { queue } from "../lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
@@ -47,8 +47,11 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
     const customerId = request.customer.customerId;
     const parsed = configBody.safeParse(request.body);
     if (!parsed.success) {
+      const message = parsed.error.errors[0]?.message ?? parsed.error.message;
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: parsed.error.message },
+        error: "VALIDATION_ERROR",
+        message: String(message),
+        issues: parsed.error.issues,
       });
     }
 
@@ -59,7 +62,8 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
       .limit(1);
     if (!template) {
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: `Unknown template key: ${parsed.data.templateKey}` },
+        error: "VALIDATION_ERROR",
+        message: `Unknown template key: ${parsed.data.templateKey}`,
       });
     }
 
@@ -69,15 +73,36 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(adTemplateConfigs.customerId, customerId))
       .limit(1);
 
+    const configChanged =
+      existing &&
+      (existing.templateKey !== parsed.data.templateKey ||
+        (existing.brandName ?? null) !== (parsed.data.brandName ?? null) ||
+        (existing.primaryColor ?? null) !== (parsed.data.primaryColor ?? null) ||
+        (existing.logoUrl ?? null) !== (parsed.data.logoUrl ?? null) ||
+        (existing.headlineStyle ?? null) !== (parsed.data.headlineStyle ?? null));
+    const wasApprovedOrPreviewReady =
+      existing && (existing.status === "approved" || existing.status === "preview_ready");
+    const invalidateApproval = Boolean(configChanged && wasApprovedOrPreviewReady);
+
+    const status: "draft" | "preview_ready" | "approved" = !existing
+      ? "draft"
+      : invalidateApproval
+        ? "draft"
+        : existing.status;
+
     const values = {
       templateKey: parsed.data.templateKey,
       brandName: parsed.data.brandName ?? null,
       primaryColor: parsed.data.primaryColor ?? null,
       logoUrl: parsed.data.logoUrl ?? null,
       headlineStyle: parsed.data.headlineStyle ?? null,
-      status: "draft" as const,
+      status,
       updatedAt: new Date(),
     };
+
+    if (existing && invalidateApproval) {
+      await db.delete(approvals).where(eq(approvals.templateConfigId, existing.id));
+    }
 
     if (existing) {
       const [updated] = await db
@@ -113,11 +138,34 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
 
     if (!config) {
       return reply.status(400).send({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "No template config. Configure a template first (POST /templates/config).",
-        },
+        error: "MISSING_PREREQUISITE",
+        message: "No template config. Configure a template first.",
+        hint: "Choose a template and save config on the Templates page, then try Generate previews again.",
       });
+    }
+
+    const DEDUPE_SECONDS = 30;
+    const dedupeSince = new Date(Date.now() - DEDUPE_SECONDS * 1000);
+    let recent: { id: string } | undefined;
+    try {
+      [recent] = await db
+        .select({ id: previewRuns.id })
+        .from(previewRuns)
+        .where(
+          and(
+            eq(previewRuns.customerId, customerId),
+            eq(previewRuns.templateConfigId, config.id),
+            inArray(previewRuns.status, ["queued", "running"]),
+            gte(previewRuns.createdAt, dedupeSince)
+          )
+        )
+        .limit(1);
+    } catch (dedupeErr) {
+      request.log.warn({ err: dedupeErr, customerId }, "Preview dedupe check failed, creating new run");
+    }
+    if (recent) {
+      request.log.info({ runId: recent.id, customerId, jobType: "preview", event: "enqueue_deduped" });
+      return reply.status(200).send({ runId: String(recent.id), jobId: null, deduped: true });
     }
 
     const [run] = await db
@@ -141,6 +189,7 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
       correlation: { customerId, runId },
     });
 
+    request.log.info({ runId, customerId, jobId, jobType: "preview", event: "enqueue" });
     return reply.status(201).send({ runId, jobId });
   });
 
@@ -204,8 +253,11 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
     const customerId = request.customer.customerId;
     const parsed = approveBody.safeParse(request.body ?? {});
     if (!parsed.success) {
+      const message = parsed.error.errors[0]?.message ?? parsed.error.message;
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: parsed.error.message },
+        error: "VALIDATION_ERROR",
+        message: String(message),
+        issues: parsed.error.issues,
       });
     }
 
@@ -217,7 +269,9 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
 
     if (!config) {
       return reply.status(400).send({
-        error: { code: "VALIDATION_ERROR", message: "No template config to approve." },
+        error: "MISSING_PREREQUISITE",
+        message: "No template config to approve.",
+        hint: "Save a template config and generate previews first.",
       });
     }
 
@@ -239,10 +293,9 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
 
     if (!latestRun || latestRun.status !== "success") {
       return reply.status(400).send({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Cannot approve: no successful preview run. Generate previews first.",
-        },
+        error: "MISSING_PREREQUISITE",
+        message: "Cannot approve: no successful preview run.",
+        hint: "Click Generate previews and wait for the run to complete, then try Approve again.",
       });
     }
 
@@ -258,10 +311,9 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
 
     if (previews.length === 0) {
       return reply.status(400).send({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Cannot approve: no previews exist. Generate previews first.",
-        },
+        error: "MISSING_PREREQUISITE",
+        message: "Cannot approve: no previews exist.",
+        hint: "Generate previews first and wait for the job to finish.",
       });
     }
 

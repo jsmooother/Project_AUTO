@@ -2,7 +2,9 @@
   "name": "@repo/web",
   "private": true,
   "scripts": {
-    "dev": "WATCHPACK_POLLING=true next dev",
+    "dev": "next dev -p 3000 --turbopack",
+    "dev:webpack": "WATCHPACK_POLLING=true next dev -p 3000",
+    "dev:clean": "rm -rf .next && pnpm dev",
     "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint"

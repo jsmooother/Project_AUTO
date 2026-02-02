@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [templateConfig, setTemplateConfig] = useState<{ id: string; status: string } | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowError, setRunNowError] = useState<string | null>(null);
+  const [runNowHint, setRunNowHint] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +60,7 @@ export default function DashboardPage() {
   const handleRunNow = async () => {
     if (!customerId) return;
     setRunNowError(null);
+    setRunNowHint(null);
     setRunNowLoading(true);
     const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, {
       customerId,
@@ -68,6 +70,7 @@ export default function DashboardPage() {
       router.push("/runs");
     } else {
       setRunNowError(res.error);
+      setRunNowHint(res.errorDetail?.hint ?? null);
     }
   };
 
@@ -202,7 +205,11 @@ export default function DashboardPage() {
               >
                 {runNowLoading ? "Starting…" : "Run crawl"}
               </button>
-              {runNowError && <span style={{ marginLeft: "1rem", color: "#c53030" }}>{runNowError}</span>}
+              {(runNowError || runNowHint) && (
+                <div style={{ marginTop: "0.5rem" }}>
+                  {runNowError && <ErrorBanner message={runNowError} hint={runNowHint ?? undefined} />}
+                </div>
+              )}
             </div>
           )}
         </div>

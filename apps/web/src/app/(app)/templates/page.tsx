@@ -40,6 +40,7 @@ export default function TemplatesPage() {
   const [previews, setPreviews] = useState<AdPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
   const [formBrand, setFormBrand] = useState("");
   const [formColor, setFormColor] = useState("");
   const [formLogo, setFormLogo] = useState("");
@@ -100,6 +101,7 @@ export default function TemplatesPage() {
     if (!customerId || !selectedTemplateKey) return;
     setSaveLoading(true);
     setError(null);
+    setErrorHint(null);
     const res = await apiPost(
       "/templates/config",
       {
@@ -112,27 +114,38 @@ export default function TemplatesPage() {
     );
     setSaveLoading(false);
     if (res.ok) load();
-    else setError(res.error);
+    else {
+      setError(res.error);
+      setErrorHint(res.errorDetail?.hint ?? null);
+    }
   };
 
   const handleGeneratePreviews = async () => {
     if (!customerId) return;
     setGenerateLoading(true);
     setError(null);
+    setErrorHint(null);
     const res = await apiPost("/templates/previews/run", undefined, { customerId });
     setGenerateLoading(false);
     if (res.ok) router.push("/runs?type=preview");
-    else setError(res.error);
+    else {
+      setError(res.error);
+      setErrorHint(res.errorDetail?.hint ?? null);
+    }
   };
 
   const handleApprove = async () => {
     if (!customerId) return;
     setApproveLoading(true);
     setError(null);
+    setErrorHint(null);
     const res = await apiPost("/templates/approve", {}, { customerId });
     setApproveLoading(false);
     if (res.ok) load();
-    else setError(res.error);
+    else {
+      setError(res.error);
+      setErrorHint(res.errorDetail?.hint ?? null);
+    }
   };
 
   if (auth.status !== "authenticated" || loading) return <LoadingSpinner />;
@@ -140,7 +153,7 @@ export default function TemplatesPage() {
   return (
     <>
       <h1 style={{ marginBottom: "1rem" }}>Templates</h1>
-      {error && <ErrorBanner message={error} onRetry={load} />}
+      {error && <ErrorBanner message={error} hint={errorHint ?? undefined} onRetry={load} />}
 
       <section style={{ marginBottom: "2rem" }}>
         <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Template library</h2>

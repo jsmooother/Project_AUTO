@@ -11,6 +11,7 @@
 | Status pills | Website, Meta, Templates, Automation | ✅ | Fetched from APIs; Meta = placeholder |
 | Sidebar nav | Dashboard, Inventory, Automation, Templates, Billing, Settings | ✅ | Active state highlighting |
 | Admin link (conditional) | — | ✅ | Shown only if `NEXT_PUBLIC_SHOW_ADMIN_LINK=true` |
+| Dev diagnostics | — | ✅ | Dashboard shows customerId, x-customer-id, source, template status (NODE_ENV=development only) |
 
 ## Phase 3 — Page-by-Page Alignment
 

@@ -1,16 +1,224 @@
+import { createHash } from "crypto";
 import type { FastifyInstance } from "fastify";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../lib/db.js";
+import { queue } from "../lib/queue.js";
+import { JOB_TYPES } from "@repo/queue";
+import { hashPassword } from "../lib/password.js";
 import {
   customers,
+  users,
+  onboardingStates,
   crawlRuns,
   previewRuns,
   inventorySources,
   inventoryItems,
+  adTemplates,
   adTemplateConfigs,
+  adPreviews,
+  approvals,
 } from "@repo/db/schema";
 
+const DEMO_PASSWORD = "demo-password";
+
+function isDevOnly(reply: { status: (code: number) => { send: (body: unknown) => void } }): boolean {
+  if (process.env["NODE_ENV"] !== "development") {
+    reply.status(403).send({
+      error: "FORBIDDEN",
+      message: "Demo and reset actions are only available in NODE_ENV=development",
+    });
+    return false;
+  }
+  return true;
+}
+
+function stableExternalId(websiteUrl: string, index: number): string {
+  const input = `${websiteUrl}\n${index}`;
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
+  // POST /admin/demo/seed - create full demo customer (dev only)
+  app.post("/admin/demo/seed", async (_request, reply) => {
+    if (!isDevOnly(reply)) return;
+
+    const passwordHash = await hashPassword(DEMO_PASSWORD);
+    const now = new Date();
+    const email = `demo-${Date.now()}@demo.local`;
+
+    const [customer] = await db
+      .insert(customers)
+      .values({ name: "Demo Customer", status: "active" })
+      .returning({ id: customers.id });
+
+    if (!customer) {
+      return reply.status(500).send({ error: { code: "INTERNAL", message: "Failed to create customer" } });
+    }
+
+    const [user] = await db
+      .insert(users)
+      .values({
+        customerId: customer.id,
+        email,
+        role: "owner",
+        passwordHash,
+      })
+      .returning({ id: users.id });
+
+    if (!user) {
+      return reply.status(500).send({ error: { code: "INTERNAL", message: "Failed to create user" } });
+    }
+
+    await db.insert(onboardingStates).values({
+      customerId: customer.id,
+      companyInfoCompleted: true,
+      budgetInfoCompleted: true,
+      companyName: "Demo Company",
+      companyWebsite: "https://demo.example.com",
+      monthlyBudgetAmount: "1000",
+      budgetCurrency: "USD",
+    });
+
+    const [source] = await db
+      .insert(inventorySources)
+      .values({
+        customerId: customer.id,
+        websiteUrl: "https://demo.example.com/inventory",
+        status: "active",
+      })
+      .returning({ id: inventorySources.id });
+
+    if (!source) {
+      return reply.status(500).send({ error: { code: "INTERNAL", message: "Failed to create inventory source" } });
+    }
+
+    const baseUrl = "https://demo.example.com/inventory";
+    const websiteUrl = baseUrl;
+    for (let i = 0; i < 10; i++) {
+      const num = String(i + 1).padStart(3, "0");
+      const externalId = stableExternalId(websiteUrl, i);
+      await db.insert(inventoryItems).values({
+        customerId: customer.id,
+        inventorySourceId: source.id,
+        externalId,
+        title: `Demo Listing ${num}`,
+        url: `${baseUrl}/listing/${num}`,
+        price: 1000 + i * 100,
+        status: "active",
+        firstSeenAt: now,
+        lastSeenAt: now,
+      });
+    }
+
+    const [template] = await db.select().from(adTemplates).where(eq(adTemplates.key, "grid_4")).limit(1);
+    const templateKey = template?.key ?? "grid_4";
+
+    const [config] = await db
+      .insert(adTemplateConfigs)
+      .values({
+        customerId: customer.id,
+        templateKey,
+        brandName: "Demo Brand",
+        primaryColor: "#0070f3",
+        logoUrl: null,
+        headlineStyle: null,
+        status: "approved",
+        updatedAt: now,
+      })
+      .returning({ id: adTemplateConfigs.id });
+
+    if (!config) {
+      return reply.status(500).send({ error: { code: "INTERNAL", message: "Failed to create template config" } });
+    }
+
+    const items = await db
+      .select({ id: inventoryItems.id, title: inventoryItems.title, url: inventoryItems.url, price: inventoryItems.price })
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.customerId, customer.id),
+          eq(inventoryItems.inventorySourceId, source.id),
+          eq(inventoryItems.status, "active")
+        )
+      )
+      .orderBy(desc(inventoryItems.lastSeenAt))
+      .limit(4);
+
+    const color = "#0070f3";
+    const brand = "Demo Brand";
+    const cells = items
+      .map(
+        (item) =>
+          `<div style="border:1px solid #ddd;padding:0.5rem;border-radius:4px;">
+            <div style="font-weight:bold;font-size:0.9rem;">${escapeHtml(item.title ?? "Item")}</div>
+            <div style="color:${color};font-size:1rem;">${item.price != null ? `$${item.price}` : ""}</div>
+          </div>`
+      )
+      .join("");
+    const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body style="font-family:sans-serif;padding:1rem;">
+      <h2 style="color:${color};">${escapeHtml(brand)}</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;max-width:400px;">${cells}</div>
+    </body></html>`;
+
+    await db.insert(adPreviews).values({
+      customerId: customer.id,
+      templateConfigId: config.id,
+      inventoryItemId: items[0]?.id ?? null,
+      previewType: "html",
+      htmlContent,
+      meta: { templateKey, itemCount: items.length },
+    });
+
+    await db.insert(approvals).values({
+      customerId: customer.id,
+      templateConfigId: config.id,
+      notes: "Demo seed",
+    });
+
+    return reply.status(201).send({
+      customerId: customer.id,
+      userId: user.id,
+      email,
+      password: DEMO_PASSWORD,
+      message: "Demo customer created. Log in with the email and password above.",
+    });
+  });
+
+  // POST /admin/customers/:customerId/reset - delete runs, previews, items, approvals (dev only)
+  app.post<{ Params: { customerId: string } }>("/admin/customers/:customerId/reset", async (request, reply) => {
+    if (!isDevOnly(reply)) return;
+
+    const { customerId } = request.params;
+
+    const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (!customer) {
+      return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Customer not found" } });
+    }
+
+    await db.delete(approvals).where(eq(approvals.customerId, customerId));
+    await db.delete(adPreviews).where(eq(adPreviews.customerId, customerId));
+    await db.delete(previewRuns).where(eq(previewRuns.customerId, customerId));
+    await db.delete(crawlRuns).where(eq(crawlRuns.customerId, customerId));
+    await db.delete(inventoryItems).where(eq(inventoryItems.customerId, customerId));
+    await db
+      .update(adTemplateConfigs)
+      .set({ status: "draft", updatedAt: new Date() })
+      .where(eq(adTemplateConfigs.customerId, customerId));
+
+    return reply.status(200).send({
+      message: "Customer data reset. Runs, previews, items, and approvals deleted; template config set to draft.",
+    });
+  });
+
   // GET /admin/inventory-sources
   app.get("/admin/inventory-sources", async (_request, reply) => {
     const list = await db
@@ -218,6 +426,105 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
     return reply.send({ data });
   });
+
+  // POST /admin/customers/:customerId/runs/crawl - trigger crawl for customer (dev ops)
+  app.post<{ Params: { customerId: string } }>(
+    "/admin/customers/:customerId/runs/crawl",
+    async (request, reply) => {
+      const { customerId } = request.params;
+
+      const [source] = await db
+        .select()
+        .from(inventorySources)
+        .where(
+          and(
+            eq(inventorySources.customerId, customerId),
+            eq(inventorySources.status, "active")
+          )
+        )
+        .limit(1);
+
+      if (!source) {
+        return reply.status(400).send({
+          error: "MISSING_PREREQUISITE",
+          message: "No active inventory source for this customer.",
+          hint: "Customer must connect a website first (POST /inventory/source).",
+        });
+      }
+
+      const [run] = await db
+        .insert(crawlRuns)
+        .values({
+          customerId,
+          inventorySourceId: source.id,
+          trigger: "admin",
+          status: "queued",
+        })
+        .returning({ id: crawlRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({
+          error: { code: "INTERNAL", message: "Insert failed" },
+        });
+      }
+
+      const runId = String(run.id);
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.CRAWL,
+        payload: { inventorySourceId: source.id },
+        correlation: { customerId, runId },
+      });
+
+      return reply.status(201).send({ runId, jobId });
+    }
+  );
+
+  // POST /admin/customers/:customerId/runs/preview - trigger preview generation for customer (dev ops)
+  app.post<{ Params: { customerId: string } }>(
+    "/admin/customers/:customerId/runs/preview",
+    async (request, reply) => {
+      const { customerId } = request.params;
+
+      const [config] = await db
+        .select()
+        .from(adTemplateConfigs)
+        .where(eq(adTemplateConfigs.customerId, customerId))
+        .limit(1);
+
+      if (!config) {
+        return reply.status(400).send({
+          error: "MISSING_PREREQUISITE",
+          message: "No template config for this customer.",
+          hint: "Customer must save a template config first (POST /templates/config).",
+        });
+      }
+
+      const [run] = await db
+        .insert(previewRuns)
+        .values({
+          customerId,
+          templateConfigId: config.id,
+          trigger: "admin",
+          status: "queued",
+        })
+        .returning({ id: previewRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({
+          error: { code: "INTERNAL", message: "Insert failed" },
+        });
+      }
+
+      const runId = String(run.id);
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.PREVIEW,
+        payload: { templateConfigId: config.id },
+        correlation: { customerId, runId },
+      });
+
+      return reply.status(201).send({ runId, jobId });
+    }
+  );
 
   // GET /admin/runs/:runId
   app.get<{ Params: { runId: string } }>("/admin/runs/:runId", async (request, reply) => {

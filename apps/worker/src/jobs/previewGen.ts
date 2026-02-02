@@ -103,7 +103,12 @@ export async function processPreviewGen(
   const { templateConfigId } = payload;
 
   if (!customerId || !runId || !templateConfigId) {
-    await job.deadLetter("Missing correlation: customerId, runId and payload.templateConfigId required");
+    const msg = "Missing correlation: customerId, runId and payload.templateConfigId required";
+    await db
+      .update(previewRuns)
+      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+      .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, customerId)));
+    await job.deadLetter(msg);
     return;
   }
 
@@ -119,7 +124,12 @@ export async function processPreviewGen(
     .limit(1);
 
   if (!config) {
-    await job.deadLetter("Template config not found");
+    const msg = "Template config not found";
+    await db
+      .update(previewRuns)
+      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+      .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, customerId)));
+    await job.deadLetter(msg);
     return;
   }
 
@@ -130,14 +140,19 @@ export async function processPreviewGen(
     .limit(1);
 
   if (!template) {
-    await job.deadLetter(`Template not found: ${config.templateKey}`);
+    const msg = `Template not found: ${config.templateKey}`;
+    await db
+      .update(previewRuns)
+      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+      .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, customerId)));
+    await job.deadLetter(msg);
     return;
   }
 
   const now = new Date();
 
   try {
-    console.log(`[PREVIEW] Starting preview run ${runId} for config ${templateConfigId}`);
+    console.log(JSON.stringify({ event: "preview_job_start", runId, customerId, templateConfigId }));
 
     await db
       .update(previewRuns)
@@ -246,11 +261,11 @@ export async function processPreviewGen(
         .where(eq(adTemplateConfigs.id, config.id));
     }
 
-    console.log(`[PREVIEW] Run ${runId} completed successfully`);
+    console.log(JSON.stringify({ event: "preview_job_finish", runId, customerId, status: "success" }));
     await job.ack();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[PREVIEW] Run ${runId} failed:`, message);
+    console.log(JSON.stringify({ event: "preview_job_finish", runId, customerId, status: "failed", errorMessage: message }));
     await db
       .update(previewRuns)
       .set({

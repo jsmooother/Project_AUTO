@@ -30,6 +30,7 @@ function RunsContent() {
   const [hasSource, setHasSource] = useState(false);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowError, setRunNowError] = useState<string | null>(null);
+  const [runNowHint, setRunNowHint] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
@@ -53,9 +54,22 @@ function RunsContent() {
     if (customerId) load();
   }, [customerId, runType]);
 
+  const hasActiveRuns = runs.some((r) => r.status === "queued" || r.status === "running");
+  const QUEUED_TIMEOUT_MS = 5 * 60 * 1000;
+  const staleQueued = runs.find(
+    (r) => r.status === "queued" && Date.now() - new Date(r.createdAt).getTime() > QUEUED_TIMEOUT_MS
+  );
+
+  useEffect(() => {
+    if (!customerId || !hasActiveRuns) return;
+    const interval = setInterval(load, 5000);
+    return () => clearInterval(interval);
+  }, [customerId, runType, hasActiveRuns]);
+
   const handleRunNow = async () => {
     if (!customerId) return;
     setRunNowError(null);
+    setRunNowHint(null);
     setRunNowLoading(true);
     const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
     setRunNowLoading(false);
@@ -63,6 +77,7 @@ function RunsContent() {
       load();
     } else {
       setRunNowError(res.error);
+      setRunNowHint(res.errorDetail?.hint ?? null);
     }
   };
 
@@ -73,7 +88,25 @@ function RunsContent() {
     <>
       <h1 style={{ marginBottom: "1rem" }}>Automation / Runs</h1>
       {error && <ErrorBanner message={error} onRetry={load} />}
-      {runNowError && <ErrorBanner message={runNowError} />}
+      {runNowError && <ErrorBanner message={runNowError} hint={runNowHint ?? undefined} />}
+      {staleQueued && (
+        <div
+          style={{
+            padding: "1rem",
+            background: "#fff3cd",
+            border: "1px solid #ffc107",
+            borderRadius: "8px",
+            marginBottom: "1rem",
+          }}
+        >
+          <strong>Worker may be offline.</strong> A run has been queued for over 5 minutes. Check that the worker is running (<code>pnpm --filter @repo/worker dev</code>) and Redis is available.
+        </div>
+      )}
+      {hasActiveRuns && !staleQueued && (
+        <p style={{ marginBottom: "1rem", fontSize: "0.9rem", color: "#666" }}>
+          Polling for updates… (runs in progress)
+        </p>
+      )}
       {runType === "crawl" && hasSource && (
         <div style={{ marginBottom: "1rem" }}>
           <button

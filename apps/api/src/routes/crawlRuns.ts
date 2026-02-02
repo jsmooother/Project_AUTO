@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, gte } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { queue } from "../lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
@@ -8,45 +8,74 @@ import { inventorySources, crawlRuns, previewRuns } from "@repo/db/schema";
 export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
   // POST /runs/crawl - enqueue a crawl run for the active source (manual trigger)
   app.post("/runs/crawl", async (request, reply) => {
-    const customerId = request.customer.customerId;
+    try {
+      const customerId = request.customer.customerId;
 
-    const [source] = await db
-      .select()
-      .from(inventorySources)
-      .where(and(eq(inventorySources.customerId, customerId), eq(inventorySources.status, "active")))
-      .limit(1);
+      const [source] = await db
+        .select()
+        .from(inventorySources)
+        .where(and(eq(inventorySources.customerId, customerId), eq(inventorySources.status, "active")))
+        .limit(1);
 
-    if (!source) {
-      return reply.status(400).send({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "No active inventory source. Connect a website first (POST /inventory/source).",
-        },
+      if (!source) {
+        return reply.status(400).send({
+          error: "MISSING_PREREQUISITE",
+          message: "No active inventory source. Connect a website first.",
+          hint: "Go to Connect Website and add your inventory URL, then try Run crawl again.",
+        });
+      }
+
+      const DEDUPE_SECONDS = 30;
+      const dedupeSince = new Date(Date.now() - DEDUPE_SECONDS * 1000);
+      let recent: { id: string } | undefined;
+      try {
+        [recent] = await db
+          .select({ id: crawlRuns.id })
+          .from(crawlRuns)
+          .where(
+            and(
+              eq(crawlRuns.customerId, customerId),
+              eq(crawlRuns.inventorySourceId, source.id),
+              inArray(crawlRuns.status, ["queued", "running"]),
+              gte(crawlRuns.createdAt, dedupeSince)
+            )
+          )
+          .limit(1);
+      } catch (dedupeErr) {
+        request.log.warn({ err: dedupeErr, customerId }, "Dedupe check failed, creating new run");
+      }
+      if (recent) {
+        request.log.info({ runId: recent.id, customerId, jobType: "crawl", event: "enqueue_deduped" });
+        return reply.status(200).send({ runId: String(recent.id), jobId: null, deduped: true });
+      }
+
+      const [run] = await db
+        .insert(crawlRuns)
+        .values({
+          customerId,
+          inventorySourceId: source.id,
+          trigger: "manual",
+          status: "queued",
+        })
+        .returning({ id: crawlRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({ error: { code: "INTERNAL", message: "Insert failed" } });
+      }
+
+      const runId = String(run.id);
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.CRAWL,
+        payload: { inventorySourceId: source.id },
+        correlation: { customerId, runId },
       });
+
+      request.log.info({ runId, customerId, jobId, jobType: "crawl", event: "enqueue" });
+      return reply.status(201).send({ runId, jobId });
+    } catch (err) {
+      request.log.error(err);
+      throw err;
     }
-
-    const [run] = await db
-      .insert(crawlRuns)
-      .values({
-        customerId,
-        inventorySourceId: source.id,
-        trigger: "manual",
-        status: "queued",
-      })
-      .returning({ id: crawlRuns.id });
-
-    if (!run) {
-      return reply.status(500).send({ error: { code: "INTERNAL", message: "Insert failed" } });
-    }
-
-    const runId = String(run.id);
-    const jobId = await queue.enqueue({
-      jobType: JOB_TYPES.CRAWL,
-      payload: { inventorySourceId: source.id },
-      correlation: { customerId, runId },
-    });
-
-    return reply.status(201).send({ runId, jobId });
   });
 
   // GET /runs?type=crawl|preview - list recent crawl or preview runs for customer
@@ -96,7 +125,8 @@ export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.status(400).send({
-      error: { code: "VALIDATION_ERROR", message: "Query param type must be 'crawl' or 'preview'" },
+      error: "VALIDATION_ERROR",
+      message: "Query param type must be 'crawl' or 'preview'",
     });
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -18,6 +18,8 @@ function getAdminHeaders(): Record<string, string> {
   return h;
 }
 
+const isDev = process.env.NODE_ENV === "development";
+
 export default function AdminCustomersPage() {
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -25,10 +27,17 @@ export default function AdminCustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [demoLoading, setDemoLoading] = useState(false);
+  const [demoResult, setDemoResult] = useState<{
+    customerId: string;
+    email: string;
+    password: string;
+  } | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
-  useEffect(() => {
+  const loadCustomers = useCallback(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set("search", search.trim());
     if (statusFilter) params.set("status", statusFilter);
@@ -41,6 +50,10 @@ export default function AdminCustomersPage() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [apiUrl, search, statusFilter]);
+
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
 
   if (loading) {
     return (
@@ -65,6 +78,67 @@ export default function AdminCustomersPage() {
   return (
     <div>
       <h1 style={{ marginBottom: "1rem" }}>Customers</h1>
+
+      {isDev && (
+        <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "8px" }}>
+          <h2 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>Dev: Seed demo data</h2>
+          <p style={{ fontSize: "0.9rem", color: "#666", marginBottom: "0.75rem" }}>
+            Creates a full demo customer (onboarding complete, website, 10 items, template config + preview, approved).
+          </p>
+          <button
+            type="button"
+            disabled={demoLoading}
+            onClick={async () => {
+              setDemoLoading(true);
+              setDemoError(null);
+              setDemoResult(null);
+              try {
+                const res = await fetch(`${apiUrl}/admin/demo/seed`, {
+                  method: "POST",
+                  headers: getAdminHeaders(),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  setDemoError(data.message ?? data.error?.message ?? "Seed failed");
+                  return;
+                }
+                setDemoResult({ customerId: data.customerId, email: data.email, password: data.password });
+                loadCustomers();
+              } catch (e) {
+                setDemoError((e as Error).message);
+              } finally {
+                setDemoLoading(false);
+              }
+            }}
+            style={{
+              padding: "0.5rem 1rem",
+              background: demoLoading ? "#94a3b8" : "#0ea5e9",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: demoLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {demoLoading ? "Creating…" : "Create demo customer"}
+          </button>
+          {demoError && (
+            <p style={{ marginTop: "0.5rem", color: "#b91c1c", fontSize: "0.9rem" }}>{demoError}</p>
+          )}
+          {demoResult && (
+            <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#fff", borderRadius: "4px", fontSize: "0.9rem" }}>
+              <p style={{ marginBottom: "0.25rem" }}><strong>Demo customer created.</strong></p>
+              <p>Email: <code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem" }}>{demoResult.email}</code></p>
+              <p>Password: <code style={{ background: "#f1f5f9", padding: "0.1rem 0.3rem" }}>{demoResult.password}</code></p>
+              <p>
+                <Link href={`/admin/customers/${demoResult.customerId}`} style={{ color: "#0ea5e9" }}>View customer</Link>
+                {" · "}
+                <a href="/login" style={{ color: "#0ea5e9" }}>Log in as this user</a>
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
         <input
           type="search"

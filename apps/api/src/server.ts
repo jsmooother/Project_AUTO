@@ -31,6 +31,20 @@ app.addHook("preHandler", (request, reply, done) => {
   requireCustomerContext(request, reply, done);
 });
 
+app.setErrorHandler((err, request, reply) => {
+  request.log.error(err);
+  if (reply.sent) return;
+  const message = err instanceof Error ? err.message : String(err);
+  const code = (err as { code?: string }).code;
+  const statusCode = reply.statusCode >= 400 ? reply.statusCode : 500;
+  reply.status(statusCode).send({
+    error: { code: code ?? "INTERNAL", message },
+    ...(process.env["NODE_ENV"] === "development" && err instanceof Error && err.stack
+      ? { stack: err.stack }
+      : {}),
+  });
+});
+
 await app.register(healthRoutes);
 await app.register(authRoutes);
 await app.register(onboardingRoutes);
