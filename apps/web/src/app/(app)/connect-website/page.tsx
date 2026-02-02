@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/api";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { Globe } from "lucide-react";
 
 export default function ConnectWebsitePage() {
   const { auth } = useAuth();
@@ -35,68 +38,138 @@ export default function ConnectWebsitePage() {
     }
   };
 
-  if (auth.status !== "authenticated") return null;
+  if (auth.status !== "authenticated") return <LoadingSpinner />;
 
   return (
-    <>
-      <h1 style={{ marginBottom: "1rem" }}>Connect website</h1>
-      <p style={{ marginBottom: "1rem", color: "#666" }}>
-        Add your inventory website URL. You can skip this and do it later from the dashboard.
-      </p>
-      {error && <ErrorBanner message={error} hint={errorHint ?? undefined} />}
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "500px" }}
+    <div style={{ maxWidth: 640 }}>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
+          style={{
+            fontSize: "1.875rem",
+            fontWeight: 600,
+            letterSpacing: "-0.025em",
+            marginBottom: "0.5rem",
+            color: "var(--pa-dark)",
+          }}
+        >
+          Connect website
+        </h1>
+        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
+          Add your inventory website URL so we can detect your listings
+        </p>
+      </div>
+
+      <div
+        style={{
+          background: "white",
+          border: "1px solid var(--pa-border)",
+          borderRadius: "var(--pa-radius-lg)",
+          padding: "1.5rem",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+        }}
       >
-        <div>
-          <label htmlFor="websiteUrl" style={{ display: "block", marginBottom: "0.5rem" }}>
-            Website URL *
-          </label>
-          <input
-            id="websiteUrl"
-            type="url"
-            value={websiteUrl}
-            onChange={(e) => setWebsiteUrl(e.target.value)}
-            required
-            placeholder="https://example.com/inventory"
-            style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            marginBottom: "1.5rem",
+          }}
+        >
+          <div
             style={{
-              padding: "0.75rem",
-              fontSize: "1rem",
-              background: "#e2e8f0",
-              color: "#4a5568",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              flex: 1,
+              width: 48,
+              height: 48,
+              borderRadius: "var(--pa-radius)",
+              background: "#dbeafe",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Skip
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: "0.75rem",
-              fontSize: "1rem",
-              background: loading ? "#cbd5e0" : "#0070f3",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: loading ? "not-allowed" : "pointer",
-              flex: 1,
-            }}
-          >
-            {loading ? "Saving..." : "Connect"}
-          </button>
+            <Globe style={{ width: 24, height: 24, color: "#2563eb" }} />
+          </div>
+          <div>
+            <h2 style={{ fontWeight: 600, fontSize: "1.1rem" }}>Website URL</h2>
+            <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+              Enter the URL of your inventory page or listings
+            </p>
+          </div>
         </div>
-      </form>
-    </>
+
+        {error && (
+          <div style={{ marginBottom: "1rem" }}>
+            <ErrorBanner message={error} hint={errorHint ?? undefined} />
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          <div>
+            <label
+              htmlFor="websiteUrl"
+              style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: "0.5rem" }}
+            >
+              Website URL
+            </label>
+            <input
+              id="websiteUrl"
+              type="url"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              required
+              placeholder="https://example.com/inventory"
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                fontSize: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "6px",
+                background: "#f3f4f6",
+              }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              style={{
+                flex: 1,
+                padding: "0.5rem 1rem",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                background: "white",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: "var(--pa-gray)",
+              }}
+            >
+              Skip
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "0.5rem 1rem",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                background: loading ? "#d1d5db" : "var(--pa-dark)",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Saving…" : "Connect"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <p style={{ marginTop: "1rem", fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+        <Link href="/dashboard" style={{ color: "var(--pa-blue)" }}>← Back to Dashboard</Link>
+      </p>
+    </div>
   );
 }

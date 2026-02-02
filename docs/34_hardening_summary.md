@@ -48,6 +48,26 @@ rm -rf apps/web/.next && pnpm --filter @repo/web build   # ✓ passes
 pnpm --filter @repo/web dev                              # ✓ uses Turbopack, no chunk error
 ```
 
+### Issue: Persistent 500 Internal Server Error
+
+**Symptoms:** Front page or other routes return 500. Often recurs after restarts or during development.
+
+**Root causes:**
+1. **Stale processes** – Old Next.js or API processes still bound to ports 3000/3001/3002, causing conflicts on restart.
+2. **Corrupted `.next` cache** – Incomplete or stale build artifacts.
+3. **Port mismatch** – API on 3002 (e.g. `PORT=3002`) but web expects 3001; auth/API calls fail.
+
+**Fix:**
+- Run `./scripts/restart-dev.sh` to kill processes on 3000/3001/3002 and clear `apps/web/.next`.
+- Restart dev servers. Ensure `NEXT_PUBLIC_API_URL` in `.env` matches the API port (e.g. `http://localhost:3002` if API uses `PORT=3002`).
+- **globals.css** is now imported in root layout (fixes missing design tokens).
+- **error.tsx** and **global-error.tsx** added to surface errors instead of a blank 500.
+
+**Additional hardening (mis-clicks / 500 recurrence):**
+- **API client** (`api.ts`): `apiGet` and `apiPost` wrapped in try/catch so fetch failures (network error, API down) never throw. They return `{ ok: false, error, hint }` instead, preventing unhandled rejections that crash React.
+- **AuthProvider** (`auth.tsx`): `refetch` wrapped in try/catch so `/auth/me` failures never throw.
+- **Layout** (`(app)/layout.tsx`): `prefetch={false}` on all nav Links to reduce chunk-loading race conditions during rapid navigation.
+
 ---
 
 ## Hardening changes (API, worker, web)

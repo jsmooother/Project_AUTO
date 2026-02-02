@@ -7,15 +7,20 @@ import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { AlertTriangle, Globe, RefreshCw, CheckCircle2 } from "lucide-react";
+
+function MetaIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 36 36" width={size} height={size} fill="currentColor">
+      <path d="M20.3 12.3c-1.2-2.2-2.8-3.7-4.6-3.7-3.1 0-5.4 3.9-5.4 9.4 0 2.4.4 4.5 1.2 6.1 1.2 2.2 2.8 3.7 4.6 3.7 3.1 0 5.4-3.9 5.4-9.4 0-2.4-.4-4.5-1.2-6.1zm10.4 3.5c-2.5 0-4.6 2.4-6.3 6.2-.7 1.7-1.3 3.5-1.6 5.4 1.6-1.5 3.5-3.8 5-6.7 1.1-2.1 1.9-4.1 2.3-5.8.2-.5.3-.8.4-1.1h.2zm-16.2 9.9c1.6-1.5 3.5-3.8 5-6.7 1.1-2.1 1.9-4.1 2.3-5.8.2-.5.3-.8.4-1.1h.2c-2.5 0-4.6 2.4-6.3 6.2-.7 1.7-1.3 3.5-1.6 5.4z" />
+    </svg>
+  );
+}
 
 interface OnboardingStatus {
   status: "not_started" | "in_progress" | "completed";
   companyInfoCompleted: boolean;
   budgetInfoCompleted: boolean;
-  companyName?: string;
-  companyWebsite?: string;
-  monthlyBudgetAmount?: string;
-  budgetCurrency?: string;
 }
 
 export default function DashboardPage() {
@@ -23,6 +28,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [websiteSource, setWebsiteSource] = useState<{ websiteUrl: string } | null>(null);
+  const [itemsCount, setItemsCount] = useState(0);
   const [templateConfig, setTemplateConfig] = useState<{ id: string; status: string } | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowError, setRunNowError] = useState<string | null>(null);
@@ -38,14 +44,15 @@ export default function DashboardPage() {
     setError(null);
     Promise.all([
       apiGet<OnboardingStatus>("/onboarding/status", { customerId }),
-      apiGet<{ data: unknown[]; source?: { websiteUrl: string } }>("/inventory/items", {
-        customerId,
-      }),
+      apiGet<{ data: unknown[]; source?: { websiteUrl: string } }>("/inventory/items", { customerId }),
       apiGet<{ id: string; status: string } | null>("/templates/config", { customerId }),
     ])
       .then(([onb, inv, cfg]) => {
         if (onb.ok) setOnboardingStatus(onb.data);
-        if (inv.ok) setWebsiteSource(inv.data.source ?? null);
+        if (inv.ok) {
+          setWebsiteSource(inv.data.source ?? null);
+          setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
+        }
         if (cfg.ok) setTemplateConfig(cfg.data ?? null);
         if (!onb.ok && !inv.ok && !cfg.ok) setError("Failed to load dashboard data");
       })
@@ -62,13 +69,10 @@ export default function DashboardPage() {
     setRunNowError(null);
     setRunNowHint(null);
     setRunNowLoading(true);
-    const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, {
-      customerId,
-    });
+    const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
     setRunNowLoading(false);
-    if (res.ok) {
-      router.push("/runs");
-    } else {
+    if (res.ok) router.push("/runs");
+    else {
       setRunNowError(res.error);
       setRunNowHint(res.errorDetail?.hint ?? null);
     }
@@ -87,244 +91,666 @@ export default function DashboardPage() {
     );
   }
 
-  if (!onboardingStatus) return null;
+  const websiteConnected = !!websiteSource;
+  const hasInventory = itemsCount > 0;
+  const metaConnected = false; // Placeholder
+  const isSetupComplete = websiteConnected && hasInventory; // Automation ready when website + inventory
+  const needsOnboarding = onboardingStatus && !onboardingStatus.companyInfoCompleted;
 
-  const isCompleted = onboardingStatus.status === "completed";
-  const needsCompanyInfo = !onboardingStatus.companyInfoCompleted;
-  const needsBudgetInfo = !onboardingStatus.budgetInfoCompleted;
+  // Only show action-required banner when there's an actual problem with clear next step
+  const setupProblem: { type: "no_website" | "no_inventory"; message: string; action: string; href: string } | null =
+    !websiteConnected
+      ? { type: "no_website", message: "Connect your website to start detecting inventory and running automated campaigns.", action: "Connect website", href: "/connect-website" }
+      : websiteConnected && !hasInventory
+        ? { type: "no_inventory", message: "Run a crawl to detect listings from your website.", action: "Run crawl", href: "/runs" }
+        : null;
 
   return (
-    <>
-      <h1 style={{ marginBottom: "1.5rem" }}>Dashboard</h1>
-
-      <section style={{ marginBottom: "2rem" }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Onboarding Status</h2>
-        <div
+    <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
           style={{
-            padding: "1rem",
-            background: isCompleted ? "#f0fff4" : "#fff",
-            border: `2px solid ${isCompleted ? "#9ae6b4" : "#e2e8f0"}`,
-            borderRadius: "8px",
+            fontSize: "1.875rem",
+            fontWeight: 600,
+            letterSpacing: "-0.025em",
+            marginBottom: "0.5rem",
+            color: "var(--pa-dark)",
           }}
         >
-          <p style={{ fontWeight: 600, marginBottom: "1rem" }}>
-            Status: <span style={{ textTransform: "capitalize" }}>{onboardingStatus.status.replace("_", " ")}</span>
+          Dashboard
+        </h1>
+        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
+          Monitor your automation status and inventory
+        </p>
+      </div>
+
+      {/* Onboarding redirect */}
+      {needsOnboarding && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1rem 1.5rem",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: "var(--pa-radius-lg)",
+          }}
+        >
+          <p style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+            Complete onboarding to get started
           </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            <p><strong>Company Info:</strong> {onboardingStatus.companyInfoCompleted ? "✅ Completed" : "❌ Not completed"}</p>
-            {onboardingStatus.companyName && <p>Company: {onboardingStatus.companyName}</p>}
-            <p><strong>Budget Info:</strong> {onboardingStatus.budgetInfoCompleted ? "✅ Completed" : "❌ Not completed"}</p>
-            {onboardingStatus.monthlyBudgetAmount && (
-              <p>Budget: {onboardingStatus.budgetCurrency} {onboardingStatus.monthlyBudgetAmount}</p>
+          <Link
+            href="/onboarding/company"
+            style={{
+              display: "inline-block",
+              padding: "0.5rem 1rem",
+              background: "var(--pa-dark)",
+              color: "white",
+              borderRadius: "6px",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            Add company information →
+          </Link>
+        </div>
+      )}
+
+      {/* Action required – only when there's an actual problem */}
+      {setupProblem && !needsOnboarding && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1.5rem",
+            background: "#fef9c3",
+            border: "1px solid #fde047",
+            borderRadius: "var(--pa-radius-lg)",
+            display: "flex",
+            gap: "1rem",
+            alignItems: "flex-start",
+          }}
+        >
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "#fef08a",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <AlertTriangle style={{ width: 20, height: 20, color: "#ca8a04" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+              <h3 style={{ fontWeight: 600, fontSize: "1rem" }}>
+                {setupProblem.type === "no_website" ? "Connect your website" : "No inventory yet"}
+              </h3>
+              <span
+                style={{
+                  padding: "0.2rem 0.5rem",
+                  background: "#ea580c",
+                  color: "white",
+                  borderRadius: 4,
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                Action required
+              </span>
+            </div>
+            <p style={{ fontSize: "0.875rem", color: "#374151", marginBottom: "0.75rem" }}>
+              {setupProblem.message}
+            </p>
+            {setupProblem.type === "no_inventory" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleRunNow}
+                  disabled={runNowLoading}
+                  style={{
+                    display: "inline-block",
+                    padding: "0.375rem 0.75rem",
+                    background: "var(--pa-dark)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    cursor: runNowLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {runNowLoading ? "Starting…" : setupProblem.action}
+                </button>
+                {(runNowError || runNowHint) && (
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <ErrorBanner message={runNowError ?? ""} hint={runNowHint ?? undefined} />
+                  </div>
+                )}
+              </>
+            ) : (
+              <Link
+                href={setupProblem.href}
+                style={{
+                  display: "inline-block",
+                  padding: "0.375rem 0.75rem",
+                  background: "var(--pa-dark)",
+                  color: "white",
+                  borderRadius: "6px",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
+                }}
+              >
+                {setupProblem.action}
+              </Link>
             )}
           </div>
         </div>
-      </section>
+      )}
 
-      {(needsCompanyInfo || needsBudgetInfo) && (
-        <section style={{ marginBottom: "2rem" }}>
-          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Complete Your Onboarding</h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {needsCompanyInfo && (
-              <Link
-                href="/onboarding/company"
-                style={{
-                  display: "block",
-                  padding: "1rem",
-                  background: "#0070f3",
-                  color: "white",
-                  textDecoration: "none",
-                  borderRadius: "6px",
-                  textAlign: "center",
-                }}
-              >
-                Add Company Information →
-              </Link>
-            )}
-            {needsBudgetInfo && (
-              <Link
-                href="/onboarding/budget"
-                style={{
-                  display: "block",
-                  padding: "1rem",
-                  background: "#0070f3",
-                  color: "white",
-                  textDecoration: "none",
-                  borderRadius: "6px",
-                  textAlign: "center",
-                }}
-              >
-                Add Budget Information →
-              </Link>
-            )}
+      {/* System status */}
+      <div
+        style={{
+          marginBottom: "1.5rem",
+          background: "white",
+          border: "1px solid var(--pa-border)",
+          borderRadius: "var(--pa-radius-lg)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--pa-border)" }}>
+          <h2 style={{ fontWeight: 600, fontSize: "1rem" }}>System status</h2>
+        </div>
+        <div
+          style={{
+            padding: "1.5rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+            gap: "1.5rem",
+          }}
+        >
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "var(--pa-radius)",
+                background: "#dbeafe",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <Globe style={{ width: 20, height: 20, color: "#2563eb" }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Website</div>
+              {websiteConnected ? (
+                <>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.2rem 0.5rem",
+                      background: "#d1fae5",
+                      color: "#065f46",
+                      border: "1px solid #a7f3d0",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <CheckCircle2 style={{ width: 12, height: 12 }} />
+                    Connected
+                  </span>
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    {websiteSource?.websiteUrl}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: "#f3f4f6",
+                      color: "var(--pa-gray)",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                      display: "inline-block",
+                    }}
+                  >
+                    Not connected
+                  </span>
+                  <Link
+                    href="/connect-website"
+                    style={{ fontSize: "0.875rem", color: "var(--pa-blue)", fontWeight: 500 }}
+                  >
+                    Connect now
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
-        </section>
-      )}
 
-      {isCompleted && (
-        <section style={{ marginBottom: "2rem", padding: "1rem", background: "#f0fff4", borderRadius: "6px" }}>
-          <p>🎉 Onboarding complete!</p>
-          <p style={{ marginTop: "0.5rem" }}>
-            Optional: <Link href="/connect-website" style={{ color: "#0070f3" }}>Connect your website</Link> to run inventory crawls.
-          </p>
-        </section>
-      )}
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "var(--pa-radius)",
+                background: "#dbeafe",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Meta Ads</div>
+              {metaConnected ? (
+                <>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.2rem 0.5rem",
+                      background: "#d1fae5",
+                      color: "#065f46",
+                      border: "1px solid #a7f3d0",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <CheckCircle2 style={{ width: 12, height: 12 }} />
+                    Connected
+                  </span>
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    Acme Inc. Ads
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: "#f3f4f6",
+                      color: "var(--pa-gray)",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                      display: "inline-block",
+                    }}
+                  >
+                    Not connected
+                  </span>
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    Coming soon
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
-      <section style={{ marginBottom: "2rem" }}>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Website &amp; Crawl</h2>
-        <div style={{ padding: "1rem", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
-          <p>
-            <strong>Website:</strong>{" "}
-            {websiteSource ? (
-              <>
-                Connected — <a href={websiteSource.websiteUrl} target="_blank" rel="noopener noreferrer">{websiteSource.websiteUrl}</a>
-                {" · "}
-                <Link href="/connect-website" style={{ color: "#0070f3" }}>Change</Link>
-              </>
-            ) : (
-              <>
-                Not connected.{" "}
-                <Link href="/connect-website" style={{ color: "#0070f3" }}>Connect a website</Link>
-              </>
-            )}
-          </p>
-          {websiteSource && (
-            <div style={{ marginTop: "1rem" }}>
+          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "var(--pa-radius)",
+                background: "#d1fae5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <RefreshCw style={{ width: 20, height: 20, color: "#059669" }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Automation</div>
+              {isSetupComplete ? (
+                <>
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: "#059669",
+                      color: "white",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                      display: "inline-block",
+                    }}
+                  >
+                    Active
+                  </span>
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    Nightly sync enabled
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: "#f3f4f6",
+                      color: "var(--pa-gray)",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      marginBottom: "0.25rem",
+                      display: "inline-block",
+                    }}
+                  >
+                    Inactive
+                  </span>
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    Complete setup to activate
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Get started – steps reflect actual progress */}
+      <div
+        style={{
+          background: "white",
+          border: "1px solid var(--pa-border)",
+          borderRadius: "var(--pa-radius-lg)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--pa-border)" }}>
+          <h2 style={{ fontWeight: 600, fontSize: "1rem" }}>Get started</h2>
+        </div>
+        <div style={{ padding: "1.5rem" }}>
+          {/* Step 1: Connect website – done when connected */}
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              alignItems: "flex-start",
+              padding: "1rem",
+              border: "1px solid var(--pa-border)",
+              borderRadius: "var(--pa-radius)",
+              marginBottom: "1rem",
+              opacity: websiteConnected ? 0.7 : 1,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: websiteConnected ? "#d1fae5" : "#dbeafe",
+                color: websiteConnected ? "#059669" : "#2563eb",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                flexShrink: 0,
+              }}
+            >
+              {websiteConnected ? <CheckCircle2 size={18} /> : "1"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Connect your website</div>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: websiteConnected ? 0 : "0.75rem" }}>
+                Add your inventory website URL so we can detect your listings
+              </p>
+              {!websiteConnected && (
+                <Link
+                  href="/connect-website"
+                  prefetch={false}
+                  style={{
+                    display: "inline-block",
+                    padding: "0.375rem 0.75rem",
+                    background: "var(--pa-dark)",
+                    color: "white",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Connect Website
+                </Link>
+              )}
+              {websiteConnected && (
+                <span style={{ fontSize: "0.875rem", color: "#059669" }}>Done</span>
+              )}
+            </div>
+          </div>
+
+          {/* Step 2: Run inventory sync – active when website connected, done when has inventory */}
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              alignItems: "flex-start",
+              padding: "1rem",
+              border: "1px solid var(--pa-border)",
+              borderRadius: "var(--pa-radius)",
+              marginBottom: "1rem",
+              opacity: !websiteConnected ? 0.5 : 1,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: hasInventory ? "#d1fae5" : websiteConnected ? "#dbeafe" : "#f3f4f6",
+                color: hasInventory ? "#059669" : websiteConnected ? "#2563eb" : "var(--pa-gray)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                flexShrink: 0,
+              }}
+            >
+              {hasInventory ? <CheckCircle2 size={18} /> : "2"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Run inventory sync</div>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: hasInventory ? 0 : "0.75rem" }}>
+                Run a crawl to scan your site and detect listings (stub crawl adds mock data for testing)
+              </p>
+              {websiteConnected && !hasInventory && (
+                <button
+                  type="button"
+                  onClick={handleRunNow}
+                  disabled={runNowLoading}
+                  style={{
+                    display: "inline-block",
+                    padding: "0.375rem 0.75rem",
+                    background: runNowLoading ? "#d1d5db" : "var(--pa-dark)",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    cursor: runNowLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {runNowLoading ? "Starting…" : "Run crawl"}
+                </button>
+              )}
+              {hasInventory && (
+                <span style={{ fontSize: "0.875rem", color: "#059669" }}>Done ({itemsCount} items)</span>
+              )}
+            </div>
+          </div>
+
+          {/* Step 3: Launch automation – active when has inventory */}
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              alignItems: "flex-start",
+              padding: "1rem",
+              border: "1px solid var(--pa-border)",
+              borderRadius: "var(--pa-radius)",
+              opacity: !hasInventory ? 0.5 : 1,
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: templateConfig?.status === "approved" ? "#d1fae5" : hasInventory ? "#dbeafe" : "#f3f4f6",
+                color: templateConfig?.status === "approved" ? "#059669" : hasInventory ? "#2563eb" : "var(--pa-gray)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 600,
+                fontSize: "0.875rem",
+                flexShrink: 0,
+              }}
+            >
+              {templateConfig?.status === "approved" ? <CheckCircle2 size={18} /> : "3"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Launch automation</div>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.75rem" }}>
+                Choose templates, generate previews, and approve to enable campaigns
+              </p>
+              {hasInventory && (
+                <Link
+                  href="/templates"
+                  prefetch={false}
+                  style={{
+                    display: "inline-block",
+                    padding: "0.375rem 0.75rem",
+                    background: "var(--pa-dark)",
+                    color: "white",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {templateConfig?.status === "approved" ? "Manage templates" : "Configure templates"}
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Run now (when website connected) */}
+      {websiteConnected && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <div
+            style={{
+              padding: "1.5rem",
+              background: "white",
+              border: "2px solid #bfdbfe",
+              borderRadius: "var(--pa-radius-lg)",
+              display: "flex",
+              gap: "1rem",
+              alignItems: "flex-start",
+            }}
+          >
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "var(--pa-radius)",
+                background: "#dbeafe",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <RefreshCw style={{ width: 24, height: 24, color: "#2563eb" }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Run automation now</h3>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
+                Manually trigger a sync to update inventory and refresh campaigns immediately
+              </p>
               <button
                 type="button"
                 onClick={handleRunNow}
                 disabled={runNowLoading}
                 style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                   padding: "0.5rem 1rem",
-                  background: runNowLoading ? "#cbd5e0" : "#0070f3",
+                  background: runNowLoading ? "#d1d5db" : "var(--pa-dark)",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
                   cursor: runNowLoading ? "not-allowed" : "pointer",
                 }}
               >
-                {runNowLoading ? "Starting…" : "Run crawl"}
+                <RefreshCw style={{ width: 16, height: 16 }} />
+                {runNowLoading ? "Starting…" : "Run Now"}
               </button>
               {(runNowError || runNowHint) && (
-                <div style={{ marginTop: "0.5rem" }}>
-                  {runNowError && <ErrorBanner message={runNowError} hint={runNowHint ?? undefined} />}
+                <div style={{ marginTop: "0.75rem" }}>
+                  <ErrorBanner message={runNowError ?? ""} hint={runNowHint ?? undefined} />
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
-        <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-          <Link href="/inventory" style={{ color: "#0070f3", textDecoration: "none" }}>Inventory</Link>
-          <Link href="/runs" style={{ color: "#0070f3", textDecoration: "none" }}>Runs / Automation</Link>
-          <Link href="/templates" style={{ color: "#0070f3", textDecoration: "none" }}>Templates</Link>
-        </div>
-      </section>
-
-      <section>
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Template Status</h2>
-        <div style={{ padding: "1rem", border: "1px solid #e2e8f0", borderRadius: "8px" }}>
-          <p>
-            <strong>Status:</strong>{" "}
-            {templateConfig ? (
-              <span
-                style={{
-                  padding: "0.2rem 0.5rem",
-                  borderRadius: "4px",
-                  background:
-                    templateConfig.status === "approved"
-                      ? "#d4edda"
-                      : templateConfig.status === "preview_ready"
-                        ? "#fff3cd"
-                        : "#f0f0f0",
-                }}
-              >
-                {templateConfig.status.replace("_", " ")}
-              </span>
-            ) : (
-              "Not configured"
-            )}
-          </p>
-          {!templateConfig && (
-            <Link
-              href="/templates"
-              style={{
-                display: "inline-block",
-                marginTop: "0.5rem",
-                padding: "0.5rem 1rem",
-                background: "#0070f3",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: "6px",
-              }}
-            >
-              Choose template
-            </Link>
-          )}
-          {templateConfig?.status === "draft" && (
-            <Link
-              href="/templates"
-              style={{
-                display: "inline-block",
-                marginTop: "0.5rem",
-                padding: "0.5rem 1rem",
-                background: "#0070f3",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: "6px",
-              }}
-            >
-              Generate previews
-            </Link>
-          )}
-          {templateConfig?.status === "preview_ready" && (
-            <Link
-              href="/templates"
-              style={{
-                display: "inline-block",
-                marginTop: "0.5rem",
-                padding: "0.5rem 1rem",
-                background: "#38a169",
-                color: "white",
-                textDecoration: "none",
-                borderRadius: "6px",
-              }}
-            >
-              Review &amp; approve
-            </Link>
-          )}
-          {templateConfig?.status === "approved" && (
-            <p style={{ marginTop: "0.5rem", color: "#276749" }}>Ready for Meta connection (future)</p>
-          )}
-        </div>
-      </section>
-
-      {process.env.NODE_ENV === "development" && (
-        <section
-          style={{
-            marginTop: "2rem",
-            padding: "1rem",
-            background: "#1a202c",
-            color: "#e2e8f0",
-            borderRadius: "8px",
-            fontSize: "0.85rem",
-          }}
-        >
-          <h3 style={{ marginBottom: "0.75rem", fontSize: "0.9rem" }}>Dev diagnostics</h3>
-          <pre style={{ margin: 0, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-            {JSON.stringify(
-              {
-                customerId: customerId ?? "(null)",
-                "x-customer-id": customerId ? "set" : "not set",
-                sourceUrl: websiteSource?.websiteUrl ?? "(none)",
-                templateConfigId: templateConfig?.id ?? "(none)",
-                templateStatus: templateConfig?.status ?? "(none)",
-              },
-              null,
-              2
-            )}
-          </pre>
-        </section>
       )}
-    </>
+
+      {/* Templates CTA */}
+      {websiteConnected && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <div
+            style={{
+              padding: "1.5rem",
+              background: "white",
+              border: "1px solid var(--pa-border)",
+              borderRadius: "var(--pa-radius-lg)",
+            }}
+          >
+            <h3 style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Templates</h3>
+            <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
+              {templateConfig
+                ? `Status: ${templateConfig.status.replace("_", " ")}`
+                : "Configure a template to generate ad previews."}
+            </p>
+            <Link
+              href="/templates"
+              style={{
+                display: "inline-block",
+                padding: "0.5rem 1rem",
+                background: "var(--pa-dark)",
+                color: "white",
+                borderRadius: "6px",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+              }}
+            >
+              {templateConfig ? "Manage templates" : "Choose template"}
+            </Link>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

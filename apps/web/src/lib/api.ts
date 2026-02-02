@@ -15,16 +15,6 @@ export type ApiOptions = {
   headers?: Record<string, string>;
 };
 
-async function parseJson<T = unknown>(res: Response): Promise<T> {
-  const text = await res.text();
-  if (!text) return {} as T;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new Error(`Invalid JSON: ${text.slice(0, 100)}`);
-  }
-}
-
 /** Structured error from API 4xx responses (message + optional hint/issues). */
 export type ApiErrorDetail = {
   error: string;
@@ -53,29 +43,45 @@ export async function apiGet<T = unknown>(
   | { ok: true; data: T }
   | { ok: false; status: number; error: string; errorDetail?: ApiErrorDetail }
 > {
-  const headers: Record<string, string> = {
-    ...options?.headers,
-  };
-  if (options?.customerId) {
-    headers["x-customer-id"] = options.customerId;
-  }
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: "GET",
-    credentials: "include",
-    headers: Object.keys(headers).length ? headers : undefined,
-  });
-  const data = await parseJson(res);
-  if (!res.ok) {
-    if (res.status === 401) onUnauthorized?.();
-    const detail = parseErrorResponse(data, res.status, res.statusText);
+  try {
+    const headers: Record<string, string> = {
+      ...options?.headers,
+    };
+    if (options?.customerId) {
+      headers["x-customer-id"] = options.customerId;
+    }
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers: Object.keys(headers).length ? headers : undefined,
+    });
+    let data: unknown;
+    try {
+      const text = await res.text();
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized?.();
+      const detail = parseErrorResponse(data, res.status, res.statusText);
+      return {
+        ok: false,
+        status: res.status,
+        error: detail.error,
+        errorDetail: detail,
+      };
+    }
+    return { ok: true, data: data as T };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Network error";
     return {
       ok: false,
-      status: res.status,
-      error: detail.error,
-      errorDetail: detail,
+      status: 0,
+      error: msg,
+      errorDetail: { error: msg, hint: "Check that the API is running and reachable." },
     };
   }
-  return { ok: true, data: data as T };
 }
 
 export async function apiPost<T = unknown>(
@@ -86,31 +92,47 @@ export async function apiPost<T = unknown>(
   | { ok: true; data: T }
   | { ok: false; status: number; error: string; errorDetail?: ApiErrorDetail }
 > {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...options?.headers,
-  };
-  if (options?.customerId) {
-    headers["x-customer-id"] = options.customerId;
-  }
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: "POST",
-    credentials: "include",
-    headers,
-    body: body != null ? JSON.stringify(body) : "{}",
-  });
-  const data = await parseJson(res);
-  if (!res.ok) {
-    if (res.status === 401) onUnauthorized?.();
-    const detail = parseErrorResponse(data, res.status, res.statusText);
+  try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    };
+    if (options?.customerId) {
+      headers["x-customer-id"] = options.customerId;
+    }
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: body != null ? JSON.stringify(body) : "{}",
+    });
+    let data: unknown;
+    try {
+      const text = await res.text();
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = {};
+    }
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized?.();
+      const detail = parseErrorResponse(data, res.status, res.statusText);
+      return {
+        ok: false,
+        status: res.status,
+        error: detail.error,
+        errorDetail: detail,
+      };
+    }
+    return { ok: true, data: data as T };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Network error";
     return {
       ok: false,
-      status: res.status,
-      error: detail.error,
-      errorDetail: detail,
+      status: 0,
+      error: msg,
+      errorDetail: { error: msg, hint: "Check that the API is running and reachable." },
     };
   }
-  return { ok: true, data: data as T };
 }
 
 export { baseUrl as apiBaseUrl };

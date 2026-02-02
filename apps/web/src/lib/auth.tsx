@@ -33,10 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState>({ status: "loading" });
 
   const refetch = useCallback(async () => {
-    const res = await apiGet<AuthUser>("/auth/me");
-    if (res.ok) {
-      setAuth({ status: "authenticated", user: res.data });
-    } else {
+    try {
+      const res = await apiGet<AuthUser>("/auth/me");
+      if (res.ok) {
+        setAuth({ status: "authenticated", user: res.data });
+      } else {
+        setAuth({ status: "unauthenticated" });
+      }
+    } catch {
       setAuth({ status: "unauthenticated" });
     }
   }, []);

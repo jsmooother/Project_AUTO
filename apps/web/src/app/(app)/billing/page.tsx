@@ -2,22 +2,38 @@
 
 export default function BillingPage() {
   return (
-    <>
-      <h1 style={{ marginBottom: "1rem" }}>Billing &amp; Payments</h1>
+    <div style={{ maxWidth: 1280 }}>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
+          style={{
+            fontSize: "1.875rem",
+            fontWeight: 600,
+            letterSpacing: "-0.025em",
+            marginBottom: "0.5rem",
+            color: "var(--pa-dark)",
+          }}
+        >
+          Billing & Payments
+        </h1>
+        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
+          Manage your subscription and payment methods
+        </p>
+      </div>
+
       <div
         style={{
+          background: "white",
+          border: "1px solid var(--pa-border)",
+          borderRadius: "var(--pa-radius-lg)",
           padding: "2rem",
-          background: "#f9fafb",
-          borderRadius: "8px",
-          border: "1px dashed #cbd5e0",
         }}
       >
         <p style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Placeholder</p>
-        <p style={{ color: "#718096", fontSize: "0.95rem" }}>
-          Billing integration (Stripe) is not yet implemented. This page matches the Figma structure
-          and will be wired when the backend is ready.
+        <p style={{ color: "var(--pa-gray)", fontSize: "0.95rem" }}>
+          Billing integration (Stripe) is not yet implemented. This page will be wired when the
+          backend is ready.
         </p>
       </div>
-    </>
+    </div>
   );
 }

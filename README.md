@@ -70,6 +70,11 @@ See:
    - From repo root: `pnpm --filter @repo/web dev:clean` (clears `.next` and starts web on 3000).  
    - Or: `cd apps/web && rm -rf .next && pnpm dev`, then open http://localhost:3000/login.
 
+   **If you see 500 Internal Server Error (or EADDRINUSE on restart):**
+   - Run: `./scripts/restart-dev.sh` to kill processes on 3000/3001/3002 and clear `.next` cache.
+   - Then start dev servers again (API, worker, web).
+   - If API runs on a different port (e.g. 3002), set `NEXT_PUBLIC_API_URL=http://localhost:3002` in `.env` so the web app can reach it.
+
 ### Docker services
 
 - **Postgres**: `localhost:5432` (user: `postgres`, password: `postgres`, db: `project_auto`)
