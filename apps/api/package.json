@@ -10,6 +10,7 @@
     "test": "node --test --test-concurrency=1 --import tsx test/**/*.test.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^10.0.0",
     "@repo/db": "workspace:*",
     "@repo/observability": "workspace:*",

@@ -1,80 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth";
+import { apiPost } from "@/lib/api";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 export default function BudgetOnboardingPage() {
+  const { auth } = useAuth();
   const router = useRouter();
   const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState("");
   const [budgetCurrency, setBudgetCurrency] = useState("USD");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const customerId = localStorage.getItem("customerId");
-    if (!customerId) {
-      router.push("/signup");
-    }
-  }, [router]);
+  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const customerId = localStorage.getItem("customerId");
-    if (!customerId) {
-      router.push("/signup");
-      return;
-    }
-
+    if (!customerId) return;
     const amount = parseFloat(monthlyBudgetAmount);
     if (isNaN(amount) || amount <= 0) {
       setError("Please enter a valid budget amount");
-      setLoading(false);
       return;
     }
-
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-      const response = await fetch(`${apiUrl}/onboarding/budget`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-customer-id": customerId,
-        },
-        body: JSON.stringify({
-          monthlyBudgetAmount: amount,
-          budgetCurrency,
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error?.message || "Failed to update budget information");
-      }
-
-      // Redirect to dashboard
-      router.push("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    setError(null);
+    const res = await apiPost(
+      "/onboarding/budget",
+      { monthlyBudgetAmount: amount, budgetCurrency },
+      { customerId }
+    );
+    setLoading(false);
+    if (res.ok) router.push("/dashboard");
+    else setError(res.error);
   };
 
+  if (auth.status !== "authenticated") return null;
+
   return (
-    <main style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h1>Budget Information</h1>
-      <p>Tell us about your monthly advertising budget</p>
-
-      {error && (
-        <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px", marginBottom: "1rem" }}>
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <>
+      <h1 style={{ marginBottom: "1rem" }}>Budget Information</h1>
+      <p style={{ marginBottom: "1rem", color: "#666" }}>
+        Tell us about your monthly advertising budget
+      </p>
+      {error && <ErrorBanner message={error} />}
+      <form
+        onSubmit={handleSubmit}
+        style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "500px" }}
+      >
         <div>
           <label htmlFor="budgetCurrency" style={{ display: "block", marginBottom: "0.5rem" }}>
             Currency
@@ -91,7 +65,6 @@ export default function BudgetOnboardingPage() {
             <option value="CAD">CAD (C$)</option>
           </select>
         </div>
-
         <div>
           <label htmlFor="monthlyBudgetAmount" style={{ display: "block", marginBottom: "0.5rem" }}>
             Monthly Budget Amount *
@@ -108,18 +81,16 @@ export default function BudgetOnboardingPage() {
             style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
           />
         </div>
-
         <div style={{ display: "flex", gap: "1rem" }}>
           <button
             type="button"
             onClick={() => router.push("/dashboard")}
             style={{
               padding: "0.75rem",
-              fontSize: "1rem",
-              background: "#ccc",
-              color: "black",
+              background: "#e2e8f0",
+              color: "#4a5568",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "6px",
               cursor: "pointer",
               flex: 1,
             }}
@@ -131,11 +102,10 @@ export default function BudgetOnboardingPage() {
             disabled={loading}
             style={{
               padding: "0.75rem",
-              fontSize: "1rem",
-              background: loading ? "#ccc" : "#0070f3",
+              background: loading ? "#cbd5e0" : "#0070f3",
               color: "white",
               border: "none",
-              borderRadius: "4px",
+              borderRadius: "6px",
               cursor: loading ? "not-allowed" : "pointer",
               flex: 1,
             }}
@@ -144,6 +114,6 @@ export default function BudgetOnboardingPage() {
           </button>
         </div>
       </form>
-    </main>
+    </>
   );
 }

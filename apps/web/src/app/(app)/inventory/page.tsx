@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAuth } from "@/lib/auth";
+import { apiGet } from "@/lib/api";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { EmptyState } from "@/components/EmptyState";
+import { ErrorBanner } from "@/components/ErrorBanner";
 
 interface InventoryItem {
   id: string;
@@ -16,75 +20,68 @@ interface InventoryItem {
 }
 
 export default function InventoryPage() {
-  const router = useRouter();
+  const { auth } = useAuth();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [source, setSource] = useState<{ id: string; websiteUrl: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const customerId = localStorage.getItem("customerId");
-    if (!customerId) {
-      router.push("/signup");
-      return;
-    }
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-    fetch(`${apiUrl}/inventory/items`, {
-      headers: { "x-customer-id": customerId },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Failed to load inventory");
-        return res.json();
-      })
-      .then((data) => {
-        setItems(data.data ?? []);
-        setSource(data.source ?? null);
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [router]);
+  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  if (loading) {
-    return (
-      <main style={{ padding: "2rem" }}>
-        <p>Loading...</p>
-      </main>
-    );
-  }
-  if (error) {
-    return (
-      <main style={{ padding: "2rem" }}>
-        <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>{error}</div>
-      </main>
-    );
-  }
+  const load = () => {
+    if (!customerId) return;
+    apiGet<{ data: InventoryItem[]; source?: { id: string; websiteUrl: string } }>(
+      "/inventory/items",
+      { customerId }
+    )
+      .then((res) => {
+        if (res.ok) {
+          setItems(res.data.data ?? []);
+          setSource(res.data.source ?? null);
+        } else setError(res.error);
+      })
+      .catch(() => setError("Failed to load inventory"))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (customerId) load();
+  }, [customerId]);
+
+  if (auth.status !== "authenticated") return <LoadingSpinner />;
+
+  if (loading) return <LoadingSpinner />;
 
   return (
-    <main style={{ padding: "2rem", maxWidth: "900px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <h1>Inventory</h1>
-        <Link href="/dashboard" style={{ color: "#0070f3", textDecoration: "none" }}>
-          ← Dashboard
-        </Link>
-      </div>
+    <>
+      <h1 style={{ marginBottom: "1rem" }}>Inventory</h1>
+      {error && <ErrorBanner message={error} onRetry={load} />}
       {source && (
         <p style={{ marginBottom: "1rem", color: "#666" }}>
           Source: <a href={source.websiteUrl} target="_blank" rel="noopener noreferrer">{source.websiteUrl}</a>
         </p>
       )}
-      {!source && (
-        <p style={{ marginBottom: "1rem" }}>
-          No website connected. <Link href="/connect-website">Connect a website</Link> first, then run a crawl.
-        </p>
+      {!source && !error && (
+        <EmptyState
+          title="No website connected"
+          description="Connect a website first, then run a crawl to import inventory."
+          actionLabel="Connect website"
+          actionHref="/connect-website"
+        />
       )}
-      {items.length === 0 && (
-        <p>No items yet. Connect a website and run a crawl from the dashboard.</p>
+      {source && items.length === 0 && !error && (
+        <EmptyState
+          title="No items yet"
+          description="Connect a website and run a crawl from the dashboard."
+          actionLabel="Go to Dashboard"
+          actionHref="/dashboard"
+        />
       )}
       {items.length > 0 && (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
-              <tr style={{ borderBottom: "2px solid #ccc", textAlign: "left" }}>
+              <tr style={{ borderBottom: "2px solid #e2e8f0", textAlign: "left" }}>
                 <th style={{ padding: "0.5rem" }}>Title</th>
                 <th style={{ padding: "0.5rem" }}>URL</th>
                 <th style={{ padding: "0.5rem" }}>Price</th>
@@ -112,6 +109,6 @@ export default function InventoryPage() {
           </table>
         </div>
       )}
-    </main>
+    </>
   );
 }

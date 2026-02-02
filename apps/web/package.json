@@ -2,8 +2,8 @@
   "name": "@repo/web",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "WATCHPACK_POLLING=true next dev",
+    "build": "NODE_ENV=production next build",
     "start": "next start",
     "lint": "next lint"
   },

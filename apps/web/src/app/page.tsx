@@ -7,6 +7,12 @@ export default function Home() {
       <p>Automated social ad enabler</p>
       <div style={{ marginTop: "2rem" }}>
         <h2>Get Started</h2>
+        <Link href="/dashboard" style={{ marginRight: "1rem", color: "#0070f3", textDecoration: "none" }}>
+          Dashboard
+        </Link>
+        <Link href="/login" style={{ marginRight: "1rem", color: "#0070f3", textDecoration: "none" }}>
+          Log In
+        </Link>
         <Link
           href="/signup"
           style={{
