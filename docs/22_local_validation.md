@@ -127,3 +127,20 @@ Mitigation:
 ## Headless usage tracking
 
 When headless is used, runs emit `HEADLESS_USED` with meta `{ provider, mode, reason }`. Probe notes record when headless_listing is selected. This aids support for older or JS-heavy dealer sites.
+
+## Known test flakiness
+
+If `apps/api/test/runEventsRunIdUuid.test.ts` endpoint test flakes (intermittent failure on "GET /v1/scrape-runs/:runId/events"), run tests with serial execution:
+
+```bash
+cd apps/api
+pnpm exec node --test --test-concurrency=1 --import tsx test/runEventsRunIdUuid.test.ts
+```
+
+Or use the package script:
+
+```bash
+pnpm --filter @repo/api test
+```
+
+The flake is typically due to event insert visibility timing or parallel test execution. Production behavior is verified working.
