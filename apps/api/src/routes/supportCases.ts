@@ -63,13 +63,14 @@ export async function supportCaseRoutes(app: FastifyInstance): Promise<void> {
       customerId,
       jobType: "SUPPORT",
       jobId: row.id,
-      runId: scrapeRunId ?? row.id,
+      runId: scrapeRunId != null ? scrapeRunId : `support:${row.id}`,
+      runIdUuid: scrapeRunId ?? undefined,
       dataSourceId: dataSourceId ?? undefined,
       level: "info",
       stage: "created",
       eventCode: "SUPPORT_CASE_CREATED",
       message: "Support case created",
-      meta: { supportCaseId: row.id, scrapeRunId },
+      meta: { supportCaseId: row.id, ...(scrapeRunId != null ? { scrapeRunId } : {}), ...(dataSourceId != null ? { dataSourceId } : {}) },
     });
 
     return reply.status(201).send(row);

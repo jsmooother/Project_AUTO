@@ -107,3 +107,29 @@ test("allows support case creation for owned dataSourceId", async () => {
     .where(eq(supportCases.id, body.id));
   assert.equal(rows.length, 1);
 });
+
+test("support case without dataSourceId emits run_event with run_id support: and run_id_uuid null", async () => {
+  const customerId = randomUUID();
+  await db.insert(customers).values({ id: customerId, name: "Customer D", status: "active" });
+  createdCustomerIds.push(customerId);
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/support-cases",
+    headers: { "x-customer-id": customerId },
+    payload: { subject: "No run linked" },
+  });
+
+  assert.equal(response.statusCode, 201);
+  const body = response.json() as { id?: string };
+  assert.ok(body.id);
+  createdSupportCaseIds.push(body.id);
+
+  const events = await db
+    .select({ runId: runEvents.runId, runIdUuid: runEvents.runIdUuid })
+    .from(runEvents)
+    .where(eq(runEvents.jobId, body.id));
+  assert.equal(events.length, 1);
+  assert.ok(events[0].runId.startsWith("support:"), "run_id should be support:...");
+  assert.equal(events[0].runIdUuid, null);
+});
