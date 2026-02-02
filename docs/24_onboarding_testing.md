@@ -153,6 +153,25 @@ Response:
 - `in_progress`: One step completed
 - `completed`: Both steps completed
 
+## Refresh-proof verification
+
+State must persist correctly after every refresh:
+
+1. **Signup** → Create account (user + org + onboarding state).
+2. **Refresh dashboard** → Status should still be `not_started`.
+3. **Complete company step** → Submit company info.
+4. **Refresh** → Status should be `in_progress`, company step completed.
+5. **Complete budget step** → Submit budget info.
+6. **Refresh** → Status should be `completed`, both steps completed.
+
+If state is correct after each refresh, the flow is refresh-proof.
+
+**Browser:** Use the same steps in the UI; refresh the dashboard after signup, after company step, and after budget step.
+
+**curl:** Run the sequence above using the same `customerId` for all requests after signup.
+
+**If API runs on a different port (e.g. 3002):** Start the web app with `NEXT_PUBLIC_API_URL=http://localhost:3002` so it calls the correct API. The API respects `PORT` from the environment (shell override is not overwritten by `.env`).
+
 ## Notes
 
 - The `/signup` endpoint does NOT require the `x-customer-id` header
