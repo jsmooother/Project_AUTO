@@ -4,6 +4,7 @@
 
 import type { Driver } from "../drivers/types.js";
 import type { SiteProfile } from "@repo/shared";
+import { DEFAULT_DETAIL_URL_TOKENS } from "@repo/shared";
 import type { DiscoverResult } from "./types.js";
 import type { DiscoveryContext } from "./types.js";
 import {
@@ -37,8 +38,7 @@ function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean
 
 function isLikelyDetailUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
-  return tokens.some((t) => lower.includes(t));
+  return DEFAULT_DETAIL_URL_TOKENS.some((t) => lower.includes(t));
 }
 
 function harvestUrlsFromHtml(html: string): string[] {
@@ -127,11 +127,13 @@ export async function discoverViaEndpointSniff(
   let endpointHintsCount = 0;
   const maxItems = profile.limits?.maxItems ?? 500;
   const maxDurationMs = profile.limits?.maxDurationMs ?? 300_000;
+  const maxSeedDurationMs = Math.min(30_000, maxDurationMs);
   const startedAt = Date.now();
 
   for (const seedUrl of seedUrls) {
     if (Date.now() - startedAt > maxDurationMs) break;
     if (items.length >= maxItems) break;
+    const seedStart = Date.now();
     const res = await driver.fetch(seedUrl, {
       timeoutMs: profile.fetch?.http?.timeoutMs ?? 15_000,
     });
@@ -160,6 +162,7 @@ export async function discoverViaEndpointSniff(
     for (const candidate of combined) {
       if (processed >= MAX_CANDIDATES_PER_SEED || items.length >= MAX_CANDIDATES_TOTAL) break;
       if (items.length >= maxItems) break;
+      if (Date.now() - seedStart > maxSeedDurationMs) break;
       processed += 1;
       if (!sanitizeCandidateUrl(candidate)) continue;
       const normalized = normalizeUrl(candidate, seedUrl, { sameHost: true });
@@ -180,6 +183,7 @@ export async function discoverViaEndpointSniff(
     // If load-more endpoints are hinted, fetch them and harvest detail URLs
     for (const hint of endpointHints) {
       if (items.length >= maxItems) break;
+      if (Date.now() - seedStart > maxSeedDurationMs) break;
       const endpointUrl = normalizeUrl(hint, seedUrl, { sameHost: true });
       if (!endpointUrl) continue;
       try {

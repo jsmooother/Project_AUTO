@@ -130,6 +130,22 @@ export async function processScrapeProd(
   const fetchDelayMs = Number(process.env["FETCH_DELAY_MS"] ?? limits.politenessDelayMs ?? 0) || 0;
 
   try {
+    const headlessMode =
+      profile.discovery?.strategy === "headless_listing"
+        ? "listing"
+        : profile.fetch?.driver === "headless"
+          ? "detail"
+          : null;
+    if (headlessMode) {
+      await emit({
+        ...basePayload,
+        level: "info",
+        stage: "discovery",
+        eventCode: "HEADLESS_USED",
+        message: "Headless driver used for scraping",
+        meta: { provider: process.env["HEADLESS_PROVIDER"] ?? "playwright-local", mode: headlessMode, reason: "profile" },
+      });
+    }
     await emit({ ...basePayload, level: "info", stage: "discovery", eventCode: "DISCOVERY_START", message: "Discovery started" });
 
     const discoverResult = await discover({
