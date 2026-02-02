@@ -128,9 +128,9 @@ Mitigation:
 
 When headless is used, runs emit `HEADLESS_USED` with meta `{ provider, mode, reason }`. Probe notes record when headless_listing is selected. This aids support for older or JS-heavy dealer sites.
 
-## Known test flakiness
+## Running DB-backed tests
 
-If `apps/api/test/runEventsRunIdUuid.test.ts` endpoint test flakes (intermittent failure on "GET /v1/scrape-runs/:runId/events"), run tests with serial execution:
+DB-backed integration tests (e.g., `apps/api/test/runEventsRunIdUuid.test.ts`) are run serially to avoid database contention and improve reliability:
 
 ```bash
 cd apps/api
@@ -143,4 +143,4 @@ Or use the package script:
 pnpm --filter @repo/api test
 ```
 
-The flake is typically due to event insert visibility timing or parallel test execution. Production behavior is verified working.
+Tests use explicit IDs and SELECT verification to ensure deterministic behavior.
