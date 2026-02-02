@@ -102,7 +102,7 @@ test("GET /v1/scrape-runs/:runId/events returns events (run_id_uuid or run_id fa
   });
   createdDataSourceIds.push(dataSourceId);
 
-  const [run] = await db
+  const runs = await db
     .insert(scrapeRuns)
     .values({
       customerId,
@@ -111,7 +111,18 @@ test("GET /v1/scrape-runs/:runId/events returns events (run_id_uuid or run_id fa
       status: "success",
     })
     .returning({ id: scrapeRuns.id });
-  assert.ok(run);
+  
+  if (!runs || runs.length === 0) {
+    // Verify customer and dataSource exist (should not happen, but helps debug)
+    const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+    const [dataSource] = await db.select().from(dataSources).where(eq(dataSources.id, dataSourceId)).limit(1);
+    throw new Error(
+      `Insert returned empty array. Customer exists: ${!!customer}, DataSource exists: ${!!dataSource}, CustomerId: ${customerId}, DataSourceId: ${dataSourceId}`
+    );
+  }
+  
+  const run = runs[0];
+  assert.ok(run, `Expected run object, got: ${JSON.stringify(runs)}`);
   createdRunIds.push(run.id);
   const runId = String(run.id);
 
