@@ -20,6 +20,12 @@ const SIMULATE_REMOVALS_FRACTION = process.env.SIMULATE_REMOVALS === "1" ? 0.1 :
 const MAX_NEW_PER_RUN = 50;
 const DETAIL_CONCURRENCY = 6;
 
+export function shouldRunRemovals(discoveredCount: number, threshold: number): boolean {
+  const safeThreshold = Number.isFinite(threshold) && threshold > 0 ? Math.floor(threshold) : 0;
+  const safeDiscovered = Number.isFinite(discoveredCount) && discoveredCount > 0 ? Math.floor(discoveredCount) : 0;
+  return safeDiscovered >= safeThreshold;
+}
+
 function getProfileFromConfig(config: unknown): SiteProfile | null {
   if (config == null || typeof config !== "object") return null;
   const c = config as Record<string, unknown>;
@@ -164,6 +170,9 @@ export async function processScrapeProd(
       meta: { ...discoverResult.meta, discoveredCount: discoverResult.items.length },
     });
 
+    const discoveredCount = discoverResult.items.length;
+    const removalThreshold = Number(process.env["MIN_DISCOVERY_FOR_REMOVALS"] ?? 5) || 5;
+
     let upsertedCount = 0;
     for (const item of discoverResult.items) {
       await db
@@ -201,28 +210,42 @@ export async function processScrapeProd(
       meta: { discoveredCount: discoverResult.items.length, upsertedCount },
     });
 
-    const removedResult = await db
-      .update(items)
-      .set({ isActive: false, removedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(items.customerId, customerId),
-          eq(items.dataSourceId, dataSourceId),
-          eq(items.isActive, true),
-          sql`${items.lastSeenRunId} IS DISTINCT FROM ${runId!}`
-        )
-      )
-      .returning({ id: items.id });
-    const removedCount = removedResult.length;
+    const runRemovals = shouldRunRemovals(discoveredCount, removalThreshold);
 
-    await emit({
-      ...basePayload,
-      level: "info",
-      stage: "removals",
-      eventCode: "REMOVALS_DONE",
-      message: "Removed items marked",
-      meta: { removedCount },
-    });
+    let removedCount = 0;
+    if (!runRemovals) {
+      await emit({
+        ...basePayload,
+        level: "warn",
+        stage: "removals",
+        eventCode: "DISCOVERY_TOO_LOW_SKIP_REMOVALS",
+        message: "Discovery returned too few items; skipping removals",
+        meta: { discoveredCount, threshold: removalThreshold, strategy: profile.discovery?.strategy },
+      });
+    } else {
+      const removedResult = await db
+        .update(items)
+        .set({ isActive: false, removedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(items.customerId, customerId),
+            eq(items.dataSourceId, dataSourceId),
+            eq(items.isActive, true),
+            sql`${items.lastSeenRunId} IS DISTINCT FROM ${runId!}`
+          )
+        )
+        .returning({ id: items.id });
+      removedCount = removedResult.length;
+
+      await emit({
+        ...basePayload,
+        level: "info",
+        stage: "removals",
+        eventCode: "REMOVALS_DONE",
+        message: "Removed items marked",
+        meta: { removedCount },
+      });
+    }
 
     const totalNewRow = await db
       .select({ count: sql<number>`count(*)` })
