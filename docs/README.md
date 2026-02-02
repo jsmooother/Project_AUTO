@@ -1,5 +1,10 @@
 # Docs
 
+## Branch summaries
+
+- **task-2-guard-removals-on-low-discovery:** `docs/branch-task-2-guard-removals.md` — API support-case ownership check; worker guardrail to skip removals when discovery is very low.
+- **review/codex-findings/tasks-3-5-reliability-observability-hardening:** `docs/branch-review-codex-findings-tasks-3-5.md` — Queue missing correlation handling; standardized lifecycle events; HTML size cap for parsing.
+
 ## Run commands
 
 - **Install dependencies (root):** `pnpm install`

@@ -103,6 +103,15 @@ export async function processScrapeProd(
 
   basePayload.runId = runId!;
 
+  await emit({
+    ...basePayload,
+    level: "info",
+    stage: "init",
+    eventCode: "SYSTEM_JOB_START",
+    message: "Job started",
+    meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+  });
+
   const [ds] = await db
     .select()
     .from(dataSources)
@@ -114,7 +123,14 @@ export async function processScrapeProd(
       .update(scrapeRuns)
       .set({ status: "failed", errorCode: "NOT_FOUND", errorMessage: "Data source not found", finishedAt: new Date() })
       .where(and(eq(scrapeRuns.id, runId!), eq(scrapeRuns.customerId, customerId)));
-    await emit({ ...basePayload, level: "error", stage: "load_data_source", eventCode: "SCRAPE_PROD_FAIL", message: "Data source not found" });
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "finalize",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message: "Data source not found",
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+    });
     await job.deadLetter("Data source not found");
     return;
   }
@@ -125,7 +141,14 @@ export async function processScrapeProd(
       .update(scrapeRuns)
       .set({ status: "failed", errorCode: "PROFILE_MISSING", errorMessage: "Site profile missing or stale", finishedAt: new Date() })
       .where(and(eq(scrapeRuns.id, runId!), eq(scrapeRuns.customerId, customerId)));
-    await emit({ ...basePayload, level: "warn", stage: "probe", eventCode: "PROFILE_MISSING", message: "Site profile missing; run probe first" });
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "finalize",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message: "Site profile missing; run probe first",
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+    });
     await job.deadLetter("Site profile missing; run POST /v1/data-sources/:id/probe first");
     return;
   }
@@ -307,6 +330,21 @@ export async function processScrapeProd(
           failedCount += 1;
           continue;
         }
+        if (res.trace.htmlTruncated) {
+          await emit({
+            ...basePayload,
+            level: "warn",
+            stage: "extract",
+            eventCode: "HTML_TRUNCATED_FOR_PARSE",
+            message: "HTML truncated for parsing",
+            meta: {
+              maxBytes: Number(process.env["MAX_HTML_BYTES_FOR_PARSE"] ?? 200_000),
+              originalBytes: res.trace.originalBytes,
+              truncatedBytes: res.trace.truncatedBytes,
+              sourceItemId: item.sourceItemId,
+            },
+          });
+        }
         const extracted = extract({ profile, fetchResult: res });
         const payloadForHash = {
           title: normalizeText(extracted.baseFields.title),
@@ -388,8 +426,17 @@ export async function processScrapeProd(
       ...basePayload,
       level: "info",
       stage: "finalize",
-      eventCode: "SCRAPE_PROD_SUCCESS",
-      message: "SCRAPE_PROD completed",
+      eventCode: "SYSTEM_JOB_SUCCESS",
+      message: "Job completed",
+      meta: {
+        jobType: JOB_TYPES.SCRAPE_PROD,
+        jobId: String(jobId),
+        dataSourceId,
+        runId: runId!,
+        items_seen: discoverResult.items.length,
+        items_new: newCount,
+        items_removed: removedCount,
+      },
     });
 
     await job.ack();
@@ -411,9 +458,9 @@ export async function processScrapeProd(
       ...basePayload,
       level: "error",
       stage: "finalize",
-      eventCode: "SCRAPE_PROD_FAIL",
+      eventCode: "SYSTEM_JOB_FAIL",
       message,
-      meta: { error: message },
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId!, error: message },
     });
 
     await job.deadLetter(message);

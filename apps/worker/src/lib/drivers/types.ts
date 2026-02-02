@@ -10,6 +10,9 @@ export interface FetchTrace {
   statusText?: string;
   durationMs: number;
   error?: string;
+  htmlTruncated?: boolean;
+  originalBytes?: number;
+  truncatedBytes?: number;
 }
 
 export interface FetchResult {

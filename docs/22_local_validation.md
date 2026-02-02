@@ -16,6 +16,50 @@ Ensure `.env` has:
 - `DATABASE_URL=postgres://...`
 - `REDIS_URL=redis://localhost:6379` (optional; defaults)
 
+## Pre-Task-6 release candidate validation
+
+Before starting Task 6 (run_events run_id UUID migration), run:
+
+```
+./scripts/pre-task-6-validate.sh
+```
+
+Requires: `DATABASE_URL` in `.env`, `psql`, API and worker running. Optional: `INTEGRATION_BRANCH` (defaults to current branch).
+
+This script:
+1) Checks out integration branch, pulls, verifies clean status
+2) Runs `tsc --noEmit` for queue, worker, api
+3) Runs `probe-and-prod.sh`, `prod-run-twice.sh`, and (if present) `validate-local.sh`
+4) If Riddermark probe times out, prints last 30 run_events for that probe run (root cause)
+5) Prints lifecycle events for a successful Ivars prod run (SYSTEM_JOB_START / SYSTEM_JOB_SUCCESS)
+
+Report: `scripts/out/pre-task-6-validation-report.txt`
+
+If the script times out during probe-and-prod or validate-local, run steps 4 and 5 manually after the scripts finish. From the script output, note:
+- **Riddermark probe run_id** (e.g. from line `Probe runId=84c34fb6-95eb-4ee4-8211-844e44eb48ad` or `probe run 84c34fb6-... status=timeout`).
+- **Ivars prod run_id** from prod-run-twice.sh (first `run_id=` line, e.g. `run_id=6b2dcf42-37de-41e8-804d-7753792c62fe`).
+
+Then run (replace `<RUN_ID>` and `<IVARS_PROD_RUN_ID>`):
+
+```bash
+# Last 30 run_events for Riddermark probe (root cause of timeout)
+psql "$DATABASE_URL" -c "
+  SELECT created_at, level, stage, event_code, message
+  FROM run_events
+  WHERE run_id = '<RUN_ID>'::text
+  ORDER BY created_at DESC
+  LIMIT 30;
+"
+
+# Lifecycle events on successful Ivars prod run
+psql "$DATABASE_URL" -c "
+  SELECT event_code, stage, level
+  FROM run_events
+  WHERE run_id = '<IVARS_PROD_RUN_ID>'::text
+  ORDER BY created_at ASC;
+"
+```
+
 ## One-command validation
 
 From repo root:
