@@ -128,6 +128,23 @@ test("GET /v1/scrape-runs/:runId/events returns events (run_id_uuid or run_id fa
     message: "Test job enqueued",
   });
 
+  // Wait for event to be visible (transaction commit + query visibility)
+  // Poll up to 1 second with 50ms intervals
+  let eventVisible = false;
+  for (let i = 0; i < 20; i++) {
+    const check = await db
+      .select({ id: runEvents.id })
+      .from(runEvents)
+      .where(eq(runEvents.runId, runId))
+      .limit(1);
+    if (check.length > 0) {
+      eventVisible = true;
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.ok(eventVisible, "Event should be visible in DB before API query");
+
   const response = await app.inject({
     method: "GET",
     url: `/v1/scrape-runs/${runId}/events`,
