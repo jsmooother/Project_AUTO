@@ -27,6 +27,9 @@ export function createHttpDriver(): Driver {
           statusText: trace.statusText,
           durationMs: trace.durationMs,
           error: trace.error,
+          htmlTruncated: trace.htmlTruncated,
+          originalBytes: trace.originalBytes,
+          truncatedBytes: trace.truncatedBytes,
         },
       };
     },

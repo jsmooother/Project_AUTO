@@ -4,6 +4,7 @@
 
 import type { Driver } from "../drivers/types.js";
 import type { SiteProfile } from "@repo/shared";
+import { DEFAULT_DETAIL_URL_TOKENS } from "@repo/shared";
 import type { DiscoveredItem, DiscoveryContext } from "./types.js";
 import { extractSourceItemId, normalizeUrl, sanitizeCandidateUrl, ensureUniqueId } from "./urlUtils.js";
 
@@ -25,8 +26,7 @@ function matchesDetailPattern(url: string, detailUrlPatterns: string[]): boolean
 
 function isLikelyDetailUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
-  return tokens.some((t) => lower.includes(t));
+  return DEFAULT_DETAIL_URL_TOKENS.some((t) => lower.includes(t));
 }
 
 export async function discoverViaHtmlLinks(

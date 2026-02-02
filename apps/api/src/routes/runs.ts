@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { queue } from "../lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
@@ -199,13 +199,14 @@ export async function runsRoutes(app: FastifyInstance): Promise<void> {
     const customerId = request.customer.customerId;
     const runId = request.params.runId;
     const limit = Math.min(parseInt(request.query.limit ?? "200", 10) || 200, 500);
-    if (!RUN_ID_REGEX.test(runId)) {
-      return reply.status(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid runId" } });
-    }
+    const isUuid = RUN_ID_REGEX.test(runId);
+    const runCondition = isUuid
+      ? or(eq(runEvents.runIdUuid, runId), eq(runEvents.runId, runId))
+      : eq(runEvents.runId, runId);
     const list = await db
       .select()
       .from(runEvents)
-      .where(and(eq(runEvents.runId, runId), eq(runEvents.customerId, customerId)))
+      .where(and(runCondition, eq(runEvents.customerId, customerId)))
       .orderBy(desc(runEvents.createdAt))
       .limit(limit);
     return reply.send({ data: list });

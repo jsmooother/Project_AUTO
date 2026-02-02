@@ -171,7 +171,7 @@ function resolveUrl(href: string, baseUrl: string): string {
 function extractAttributesGeneric(html: string): Record<string, unknown> {
   const attrs: Record<string, unknown> = {};
   const keyValueRegex = new RegExp(
-    "(?:<dt[^>]*>([^<]*)</dt>\\s*<dd[^>]*>([^<]*)</dd>|<(?:strong|b|span)[^>]*>([^:<]+):?\\s*</[^>]+>\\s*([^<]+)",
+    "(?:<dt[^>]*>([^<]*)</dt>\\s*<dd[^>]*>([^<]*)</dd>|<(?:strong|b|span)[^>]*>([^:<]+):?\\s*</[^>]+>\\s*([^<]+))",
     "gi"
   );
   let m: RegExpExecArray | null;

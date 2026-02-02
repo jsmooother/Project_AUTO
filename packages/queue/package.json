@@ -12,13 +12,15 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --test --import tsx test/validateCorrelation.test.ts"
   },
   "dependencies": {
     "bullmq": "^5.0.0",
     "ioredis": "^5.4.0"
   },
   "devDependencies": {
+    "tsx": "^4.0.0",
     "typescript": "^5.5.0"
   }
 }

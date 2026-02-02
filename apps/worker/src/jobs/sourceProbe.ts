@@ -9,6 +9,7 @@ import { dataSources, scrapeRuns } from "@repo/db/schema";
 import type { SiteProfile } from "@repo/shared";
 import {
   DEFAULT_PROFILE_LIMITS,
+  DEFAULT_DETAIL_URL_TOKENS,
   type DiscoveryStrategy,
   type SiteProfileDiscovery,
 } from "@repo/shared";
@@ -54,7 +55,8 @@ function learnDetailUrlPattern(sampleUrls: string[]): string[] {
     const segments = path.split("/").filter(Boolean);
     if (segments.length < 2) return [".*"];
     const prefix = segments.slice(0, -1).join("/");
-    return [`.*${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^/]*/?.*`];
+    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return [`^https?://[^/]+/${escapedPrefix}/[^/]+/?$`];
   } catch {
     return [".*"];
   }
@@ -70,8 +72,7 @@ function detectVertical(attributesJson: Record<string, unknown>): "vehicle" | "g
 
 function isLikelyDetailUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const tokens = ["/bil/", "/fordon/", "/car/", "/vehicle/", "/auto/"];
-  return tokens.some((t) => lower.includes(t));
+  return DEFAULT_DETAIL_URL_TOKENS.some((t) => lower.includes(t));
 }
 
 export async function processSourceProbe(
@@ -119,6 +120,15 @@ export async function processSourceProbe(
   await emit({
     ...basePayload,
     level: "info",
+    stage: "init",
+    eventCode: "SYSTEM_JOB_START",
+    message: "Job started",
+    meta: { jobType: JOB_TYPES.SOURCE_PROBE, jobId: String(jobId), dataSourceId, runId },
+  });
+
+  await emit({
+    ...basePayload,
+    level: "info",
     stage: "probe",
     eventCode: "PROBE_START",
     message: "Onboarding probe started",
@@ -138,9 +148,10 @@ export async function processSourceProbe(
     await emit({
       ...basePayload,
       level: "error",
-      stage: "probe",
+      stage: "finalize",
       eventCode: "SYSTEM_JOB_FAIL",
       message: "Data source not found",
+      meta: { jobType: JOB_TYPES.SOURCE_PROBE, jobId: String(jobId), dataSourceId, runId },
     });
     await job.deadLetter("Data source not found");
     return;
@@ -188,6 +199,21 @@ export async function processSourceProbe(
           try {
             const res = await driver.fetch(url, { timeoutMs: 10_000 });
             if (res.status !== 200 || !res.body) continue;
+            if (res.trace.htmlTruncated) {
+              await emit({
+                ...basePayload,
+                level: "warn",
+                stage: "extract",
+                eventCode: "HTML_TRUNCATED_FOR_PARSE",
+                message: "HTML truncated for parsing",
+                meta: {
+                  maxBytes: Number(process.env["MAX_HTML_BYTES_FOR_PARSE"] ?? 200_000),
+                  originalBytes: res.trace.originalBytes,
+                  truncatedBytes: res.trace.truncatedBytes,
+                  url,
+                },
+              });
+            }
             const extracted = extract({
               profile: {
                 profileVersion: 1,
@@ -237,6 +263,9 @@ export async function processSourceProbe(
     confidence = 0.1;
     notes.push(`Only ${foundCount} items discovered; consider adding sitemapUrls/seedUrls or enabling headless.`);
   }
+  if (selectedStrategy === "headless_listing") {
+    notes.push("Headless listing selected by probe for dynamic inventory discovery.");
+  }
 
   await emit({
     ...basePayload,
@@ -246,6 +275,16 @@ export async function processSourceProbe(
     message: `Discovery strategy selected: ${selectedStrategy}`,
     meta: { strategy: selectedStrategy, discoveredCount: discoveredItems.length },
   });
+  if (selectedStrategy === "headless_listing") {
+    await emit({
+      ...basePayload,
+      level: "info",
+      stage: "probe",
+      eventCode: "HEADLESS_USED",
+      message: "Headless driver selected for listing discovery",
+      meta: { provider: process.env["HEADLESS_PROVIDER"] ?? "playwright-local", mode: "listing", reason: "probe_strategy" },
+    });
+  }
 
   let extractVertical: "vehicle" | "generic" = "generic";
   const likely = discoveredItems.filter((i) => isLikelyDetailUrl(i.url));
@@ -259,6 +298,21 @@ export async function processSourceProbe(
     try {
       const res = await driver.fetch(url, { timeoutMs: 15_000 });
       if (res.status !== 200 || !res.body) continue;
+      if (res.trace.htmlTruncated) {
+        await emit({
+          ...basePayload,
+          level: "warn",
+          stage: "extract",
+          eventCode: "HTML_TRUNCATED_FOR_PARSE",
+          message: "HTML truncated for parsing",
+          meta: {
+            maxBytes: Number(process.env["MAX_HTML_BYTES_FOR_PARSE"] ?? 200_000),
+            originalBytes: res.trace.originalBytes,
+            truncatedBytes: res.trace.truncatedBytes,
+            url,
+          },
+        });
+      }
       const trialProfile: SiteProfile = {
         profileVersion: 1,
         probe: { testedAt: "", confidence: 0, notes: [] },
@@ -339,10 +393,14 @@ export async function processSourceProbe(
   await emit({
     ...basePayload,
     level: "info",
-    stage: "probe",
-    eventCode: "PROBE_DONE",
-    message: "Probe completed",
+    stage: "finalize",
+    eventCode: "SYSTEM_JOB_SUCCESS",
+    message: "Job completed",
     meta: {
+      jobType: JOB_TYPES.SOURCE_PROBE,
+      jobId: String(jobId),
+      dataSourceId,
+      runId,
       confidence,
       strategy: selectedStrategy,
       foundCount,
@@ -361,9 +419,10 @@ export async function processSourceProbe(
     await emit({
       ...basePayload,
       level: "error",
-      stage: "probe",
+      stage: "finalize",
       eventCode: "SYSTEM_JOB_FAIL",
       message,
+      meta: { jobType: JOB_TYPES.SOURCE_PROBE, jobId: String(jobId), dataSourceId, runId },
     });
     await job.deadLetter(message);
   }

@@ -16,6 +16,61 @@ import { JOB_TYPES } from "./adapter.js";
 
 const QUEUE_PREFIX = "repo";
 
+export type ValidateCorrelationResult =
+  | { ok: true; correlation: CorrelationContext }
+  | { ok: false; reason: "MISSING_CORRELATION" | "MISSING_CUSTOMER_ID"; correlation?: Partial<CorrelationContext> | null };
+
+/**
+ * Pure validation for job data. Use in worker wrapper to decide whether to process or dead-letter.
+ */
+export function validateCorrelation(data: { correlation?: unknown }): ValidateCorrelationResult {
+  const correlation = data.correlation;
+  if (correlation == null || typeof correlation !== "object") {
+    return { ok: false, reason: "MISSING_CORRELATION" };
+  }
+  const c = correlation as Record<string, unknown>;
+  const customerId = c.customerId;
+  if (typeof customerId !== "string" || !customerId.trim()) {
+    return {
+      ok: false,
+      reason: "MISSING_CUSTOMER_ID",
+      correlation: {
+        customerId: "",
+        dataSourceId: typeof c.dataSourceId === "string" ? c.dataSourceId : undefined,
+        runId: typeof c.runId === "string" ? c.runId : undefined,
+      },
+    };
+  }
+  return {
+    ok: true,
+    correlation: {
+      customerId: customerId.trim(),
+      dataSourceId: typeof c.dataSourceId === "string" ? c.dataSourceId : undefined,
+      runId: typeof c.runId === "string" ? c.runId : undefined,
+    },
+  };
+}
+
+function logQueueValidationError(params: {
+  jobType: JobType;
+  jobId: string;
+  reason: string;
+  correlation?: Partial<CorrelationContext> | null;
+}): void {
+  const payload = {
+    event: "queue_validation_error",
+    jobType: params.jobType,
+    jobId: params.jobId,
+    reason: params.reason,
+    ...(params.correlation != null && Object.keys(params.correlation).length > 0 ? { correlation: params.correlation } : {}),
+  };
+  try {
+    console.error(JSON.stringify(payload));
+  } catch {
+    console.error(String(payload));
+  }
+}
+
 function getConnectionOptions(): ConnectionOptions {
   const url = process.env["REDIS_URL"];
   if (url) {
@@ -37,6 +92,68 @@ function queueName(jobType: JobType): string {
   return `${QUEUE_PREFIX}-${jobType}`;
 }
 
+/** BullJob-like shape used by the processor; exported for tests. */
+export type BullJobLike<T> = {
+  id: string | number | undefined;
+  data: { payload: T; correlation: CorrelationContext };
+  token?: string;
+  moveToFailed: (err: Error, token: string) => Promise<void>;
+  retry: () => Promise<void>;
+};
+
+/**
+ * Runs the worker processor logic for one job. Used by createWorker and by tests to assert
+ * missing correlation leads to moveToFailed (deadLetter) and no throw.
+ */
+export async function runWorkerProcessor<T>(
+  bullJob: BullJobLike<T>,
+  jobType: JobType,
+  processJob: (job: QueuedJob<T>) => Promise<void>,
+  opts: { onMissingCorrelation?: (params: OnMissingCorrelationParams) => Promise<void> | void }
+): Promise<void> {
+  const jobId = String(bullJob.id ?? "");
+  const validation = validateCorrelation(bullJob.data);
+  if (!validation.ok) {
+    logQueueValidationError({
+      jobType,
+      jobId,
+      reason: validation.reason,
+      correlation: validation.correlation ?? null,
+    });
+    await opts.onMissingCorrelation?.({
+      jobType,
+      jobId,
+      reason: validation.reason,
+      correlation: validation.correlation ?? null,
+    });
+    const token = bullJob.token ?? "";
+    await bullJob.moveToFailed(new Error(validation.reason), token);
+    return;
+  }
+  const correlation = validation.correlation;
+  const token = bullJob.token ?? "";
+  const queuedJob: QueuedJob<T> = {
+    jobId,
+    payload: bullJob.data.payload,
+    correlation,
+    ack: async () => {},
+    retry: async () => {
+      await bullJob.retry();
+    },
+    deadLetter: async (reason: string) => {
+      await bullJob.moveToFailed(new Error(reason), token);
+    },
+  };
+  await processJob(queuedJob);
+}
+
+export type OnMissingCorrelationParams = {
+  jobType: JobType;
+  jobId: string;
+  reason: "MISSING_CORRELATION" | "MISSING_CUSTOMER_ID";
+  correlation?: Partial<CorrelationContext> | null;
+};
+
 export type RedisQueueOptions = {
   connection?: ConnectionOptions;
   onLockIssue?: (params: {
@@ -46,6 +163,8 @@ export type RedisQueueOptions = {
     event: "lock_renew_fail" | "lock_lost";
     error: Error;
   }) => Promise<void> | void;
+  /** Called when a job is dead-lettered due to missing/invalid correlation. Use to emit run_event when runId/customerId available. */
+  onMissingCorrelation?: (params: OnMissingCorrelationParams) => Promise<void> | void;
 };
 
 export function createRedisQueueAdapter(options: RedisQueueOptions = {}): QueueAdapter {
@@ -91,26 +210,21 @@ export function createRedisQueueAdapter(options: RedisQueueOptions = {}): QueueA
       const worker = new Worker(
         queueName(jobType),
         async (bullJob: Job<{ payload: T; correlation: CorrelationContext }>) => {
-          const correlation = bullJob.data.correlation;
-          if (!correlation?.customerId) {
-            throw new Error("Job missing correlation.customerId");
-          }
           const token = (bullJob as Job<{ payload: T; correlation: CorrelationContext }> & { token?: string }).token ?? "";
-          const queuedJob: QueuedJob<T> = {
-            jobId: bullJob.id ?? "",
-            payload: bullJob.data.payload,
-            correlation: bullJob.data.correlation,
-            ack: async () => {
-              /* BullMQ completes the job when processor returns */
+          await runWorkerProcessor(
+            {
+              id: bullJob.id,
+              data: bullJob.data,
+              token,
+              moveToFailed: async (err, t) => {
+                await bullJob.moveToFailed(err, t);
+              },
+              retry: () => bullJob.retry(),
             },
-            retry: async (_backoffMs?: number) => {
-              await bullJob.retry();
-            },
-            deadLetter: async (reason: string) => {
-              await bullJob.moveToFailed(new Error(reason), token);
-            },
-          };
-          await processJob(queuedJob);
+            jobType,
+            processJob,
+            { onMissingCorrelation: options.onMissingCorrelation }
+          );
         },
         {
           connection,

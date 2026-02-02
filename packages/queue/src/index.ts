@@ -6,4 +6,12 @@ export {
   type QueuedJob,
   JOB_TYPES,
 } from "./adapter.js";
-export { createRedisQueueAdapter, type RedisQueueOptions } from "./redis.js";
+export {
+  createRedisQueueAdapter,
+  type RedisQueueOptions,
+  type OnMissingCorrelationParams,
+  type ValidateCorrelationResult,
+  type BullJobLike,
+  validateCorrelation,
+  runWorkerProcessor,
+} from "./redis.js";

@@ -20,6 +20,12 @@ const SIMULATE_REMOVALS_FRACTION = process.env.SIMULATE_REMOVALS === "1" ? 0.1 :
 const MAX_NEW_PER_RUN = 50;
 const DETAIL_CONCURRENCY = 6;
 
+export function shouldRunRemovals(discoveredCount: number, threshold: number): boolean {
+  const safeThreshold = Number.isFinite(threshold) && threshold > 0 ? Math.floor(threshold) : 0;
+  const safeDiscovered = Number.isFinite(discoveredCount) && discoveredCount > 0 ? Math.floor(discoveredCount) : 0;
+  return safeDiscovered >= safeThreshold;
+}
+
 function getProfileFromConfig(config: unknown): SiteProfile | null {
   if (config == null || typeof config !== "object") return null;
   const c = config as Record<string, unknown>;
@@ -97,6 +103,15 @@ export async function processScrapeProd(
 
   basePayload.runId = runId!;
 
+  await emit({
+    ...basePayload,
+    level: "info",
+    stage: "init",
+    eventCode: "SYSTEM_JOB_START",
+    message: "Job started",
+    meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+  });
+
   const [ds] = await db
     .select()
     .from(dataSources)
@@ -108,7 +123,14 @@ export async function processScrapeProd(
       .update(scrapeRuns)
       .set({ status: "failed", errorCode: "NOT_FOUND", errorMessage: "Data source not found", finishedAt: new Date() })
       .where(and(eq(scrapeRuns.id, runId!), eq(scrapeRuns.customerId, customerId)));
-    await emit({ ...basePayload, level: "error", stage: "load_data_source", eventCode: "SCRAPE_PROD_FAIL", message: "Data source not found" });
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "finalize",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message: "Data source not found",
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+    });
     await job.deadLetter("Data source not found");
     return;
   }
@@ -119,7 +141,14 @@ export async function processScrapeProd(
       .update(scrapeRuns)
       .set({ status: "failed", errorCode: "PROFILE_MISSING", errorMessage: "Site profile missing or stale", finishedAt: new Date() })
       .where(and(eq(scrapeRuns.id, runId!), eq(scrapeRuns.customerId, customerId)));
-    await emit({ ...basePayload, level: "warn", stage: "probe", eventCode: "PROFILE_MISSING", message: "Site profile missing; run probe first" });
+    await emit({
+      ...basePayload,
+      level: "error",
+      stage: "finalize",
+      eventCode: "SYSTEM_JOB_FAIL",
+      message: "Site profile missing; run probe first",
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId! },
+    });
     await job.deadLetter("Site profile missing; run POST /v1/data-sources/:id/probe first");
     return;
   }
@@ -130,6 +159,22 @@ export async function processScrapeProd(
   const fetchDelayMs = Number(process.env["FETCH_DELAY_MS"] ?? limits.politenessDelayMs ?? 0) || 0;
 
   try {
+    const headlessMode =
+      profile.discovery?.strategy === "headless_listing"
+        ? "listing"
+        : profile.fetch?.driver === "headless"
+          ? "detail"
+          : null;
+    if (headlessMode) {
+      await emit({
+        ...basePayload,
+        level: "info",
+        stage: "discovery",
+        eventCode: "HEADLESS_USED",
+        message: "Headless driver used for scraping",
+        meta: { provider: process.env["HEADLESS_PROVIDER"] ?? "playwright-local", mode: headlessMode, reason: "profile" },
+      });
+    }
     await emit({ ...basePayload, level: "info", stage: "discovery", eventCode: "DISCOVERY_START", message: "Discovery started" });
 
     const discoverResult = await discover({
@@ -147,6 +192,9 @@ export async function processScrapeProd(
       message: "Discovery completed",
       meta: { ...discoverResult.meta, discoveredCount: discoverResult.items.length },
     });
+
+    const discoveredCount = discoverResult.items.length;
+    const removalThreshold = Number(process.env["MIN_DISCOVERY_FOR_REMOVALS"] ?? 5) || 5;
 
     let upsertedCount = 0;
     for (const item of discoverResult.items) {
@@ -185,28 +233,42 @@ export async function processScrapeProd(
       meta: { discoveredCount: discoverResult.items.length, upsertedCount },
     });
 
-    const removedResult = await db
-      .update(items)
-      .set({ isActive: false, removedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(items.customerId, customerId),
-          eq(items.dataSourceId, dataSourceId),
-          eq(items.isActive, true),
-          sql`${items.lastSeenRunId} IS DISTINCT FROM ${runId!}`
-        )
-      )
-      .returning({ id: items.id });
-    const removedCount = removedResult.length;
+    const runRemovals = shouldRunRemovals(discoveredCount, removalThreshold);
 
-    await emit({
-      ...basePayload,
-      level: "info",
-      stage: "removals",
-      eventCode: "REMOVALS_DONE",
-      message: "Removed items marked",
-      meta: { removedCount },
-    });
+    let removedCount = 0;
+    if (!runRemovals) {
+      await emit({
+        ...basePayload,
+        level: "warn",
+        stage: "removals",
+        eventCode: "DISCOVERY_TOO_LOW_SKIP_REMOVALS",
+        message: "Discovery returned too few items; skipping removals",
+        meta: { discoveredCount, threshold: removalThreshold, strategy: profile.discovery?.strategy },
+      });
+    } else {
+      const removedResult = await db
+        .update(items)
+        .set({ isActive: false, removedAt: new Date(), updatedAt: new Date() })
+        .where(
+          and(
+            eq(items.customerId, customerId),
+            eq(items.dataSourceId, dataSourceId),
+            eq(items.isActive, true),
+            sql`${items.lastSeenRunId} IS DISTINCT FROM ${runId!}`
+          )
+        )
+        .returning({ id: items.id });
+      removedCount = removedResult.length;
+
+      await emit({
+        ...basePayload,
+        level: "info",
+        stage: "removals",
+        eventCode: "REMOVALS_DONE",
+        message: "Removed items marked",
+        meta: { removedCount },
+      });
+    }
 
     const totalNewRow = await db
       .select({ count: sql<number>`count(*)` })
@@ -267,6 +329,21 @@ export async function processScrapeProd(
           });
           failedCount += 1;
           continue;
+        }
+        if (res.trace.htmlTruncated) {
+          await emit({
+            ...basePayload,
+            level: "warn",
+            stage: "extract",
+            eventCode: "HTML_TRUNCATED_FOR_PARSE",
+            message: "HTML truncated for parsing",
+            meta: {
+              maxBytes: Number(process.env["MAX_HTML_BYTES_FOR_PARSE"] ?? 200_000),
+              originalBytes: res.trace.originalBytes,
+              truncatedBytes: res.trace.truncatedBytes,
+              sourceItemId: item.sourceItemId,
+            },
+          });
         }
         const extracted = extract({ profile, fetchResult: res });
         const payloadForHash = {
@@ -349,8 +426,17 @@ export async function processScrapeProd(
       ...basePayload,
       level: "info",
       stage: "finalize",
-      eventCode: "SCRAPE_PROD_SUCCESS",
-      message: "SCRAPE_PROD completed",
+      eventCode: "SYSTEM_JOB_SUCCESS",
+      message: "Job completed",
+      meta: {
+        jobType: JOB_TYPES.SCRAPE_PROD,
+        jobId: String(jobId),
+        dataSourceId,
+        runId: runId!,
+        items_seen: discoverResult.items.length,
+        items_new: newCount,
+        items_removed: removedCount,
+      },
     });
 
     await job.ack();
@@ -372,9 +458,9 @@ export async function processScrapeProd(
       ...basePayload,
       level: "error",
       stage: "finalize",
-      eventCode: "SCRAPE_PROD_FAIL",
+      eventCode: "SYSTEM_JOB_FAIL",
       message,
-      meta: { error: message },
+      meta: { jobType: JOB_TYPES.SCRAPE_PROD, jobId: String(jobId), dataSourceId, runId: runId!, error: message },
     });
 
     await job.deadLetter(message);

@@ -223,6 +223,7 @@ export const runEvents = pgTable("run_events", {
   jobType: text("job_type").notNull(),
   jobId: text("job_id").notNull(),
   runId: text("run_id").notNull(),
+  runIdUuid: uuid("run_id_uuid").references(() => scrapeRuns.id, { onDelete: "set null" }),
   dataSourceId: uuid("data_source_id").references(() => dataSources.id, { onDelete: "set null" }),
   level: text("level").notNull(),
   stage: text("stage").notNull(),
