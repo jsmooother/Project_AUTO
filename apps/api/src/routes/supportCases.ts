@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../lib/db.js";
-import { supportCases, scrapeRuns } from "@repo/db/schema";
+import { dataSources, supportCases, scrapeRuns } from "@repo/db/schema";
 import { emitRunEvent } from "@repo/observability/runEvents";
 
 const createBody = z.object({
@@ -22,11 +22,24 @@ export async function supportCaseRoutes(app: FastifyInstance): Promise<void> {
     }
 
     let scrapeRunId: string | null = null;
-    if (parsed.data.dataSourceId) {
+    let dataSourceId: string | null = parsed.data.dataSourceId ?? null;
+    if (dataSourceId) {
+      const [dataSource] = await db
+        .select({ id: dataSources.id })
+        .from(dataSources)
+        .where(and(eq(dataSources.id, dataSourceId), eq(dataSources.customerId, customerId)))
+        .limit(1);
+
+      if (!dataSource) {
+        return reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "Data source not found" },
+        });
+      }
+
       const [latest] = await db
         .select({ id: scrapeRuns.id })
         .from(scrapeRuns)
-        .where(and(eq(scrapeRuns.customerId, customerId), eq(scrapeRuns.dataSourceId, parsed.data.dataSourceId)))
+        .where(and(eq(scrapeRuns.customerId, customerId), eq(scrapeRuns.dataSourceId, dataSourceId)))
         .orderBy(desc(scrapeRuns.startedAt))
         .limit(1);
       if (latest) scrapeRunId = latest.id;
@@ -36,7 +49,7 @@ export async function supportCaseRoutes(app: FastifyInstance): Promise<void> {
       .insert(supportCases)
       .values({
         customerId,
-        dataSourceId: parsed.data.dataSourceId ?? null,
+        dataSourceId,
         scrapeRunId,
         subject: parsed.data.subject ?? null,
         description: parsed.data.description ?? null,
@@ -50,13 +63,13 @@ export async function supportCaseRoutes(app: FastifyInstance): Promise<void> {
       customerId,
       jobType: "SUPPORT",
       jobId: row.id,
-      runId: row.id,
-      dataSourceId: parsed.data.dataSourceId ?? undefined,
+      runId: scrapeRunId ?? row.id,
+      dataSourceId: dataSourceId ?? undefined,
       level: "info",
       stage: "created",
       eventCode: "SUPPORT_CASE_CREATED",
       message: "Support case created",
-      meta: { supportCaseId: row.id },
+      meta: { supportCaseId: row.id, scrapeRunId },
     });
 
     return reply.status(201).send(row);

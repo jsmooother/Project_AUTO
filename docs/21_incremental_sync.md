@@ -48,5 +48,11 @@ Set **SIMULATE_REMOVALS=1** on the worker to drop 10% of discovered URLs before 
 ## Run events
 
 Probe: PROBE_START, PROBE_STRATEGY_SELECTED, PROBE_DONE. When headless_listing selected: HEADLESS_USED.  
-SCRAPE_PROD: DISCOVERY_START, DISCOVERY_DONE, DIFF_DONE, DETAILS_START, DETAILS_DONE, REMOVALS_DONE, SCRAPE_PROD_SUCCESS / SCRAPE_PROD_FAIL, ITEM_DETAIL_OK / ITEM_DETAIL_FAIL. When profile uses headless: HEADLESS_USED.  
+SCRAPE_PROD: DISCOVERY_START, DISCOVERY_DONE, DIFF_DONE, DETAILS_START, DETAILS_DONE, REMOVALS_DONE, SCRAPE_PROD_SUCCESS / SCRAPE_PROD_FAIL, ITEM_DETAIL_OK / ITEM_DETAIL_FAIL, DISCOVERY_TOO_LOW_SKIP_REMOVALS (warn). When profile uses headless: HEADLESS_USED.  
 Queue: QUEUE_LOCK_RENEW_FAIL, QUEUE_LOCK_LOST (when BullMQ lock issues occur).
+
+### Guardrail: skip removals on very low discovery
+
+- After discovery we count items; if below a threshold, removals are skipped to prevent mass inactivation from transient discovery failures.
+- Default threshold: 5 items. Override with env `MIN_DISCOVERY_FOR_REMOVALS` on the worker.
+- When skipped, the run emits `DISCOVERY_TOO_LOW_SKIP_REMOVALS` (warn) with meta `{ discoveredCount, threshold, strategy }` and writes `items_removed=0`.
