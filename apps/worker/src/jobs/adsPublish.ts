@@ -9,6 +9,8 @@ import {
   approvals,
   adPreviews,
   inventorySources,
+  adsBudgetPlans,
+  onboardingStates,
 } from "@repo/db/schema";
 import type { QueuedJob } from "@repo/queue";
 import { metaPost, type MetaGraphError } from "../lib/metaGraph.js";
@@ -104,6 +106,79 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
       return;
     }
 
+    // Pricing & spend: load or seed ads_budget_plans (internal only)
+    let [budgetPlan] = await db
+      .select()
+      .from(adsBudgetPlans)
+      .where(eq(adsBudgetPlans.customerId, customerId))
+      .limit(1);
+
+    if (!budgetPlan) {
+      const [onboarding] = await db
+        .select({ monthlyBudgetAmount: onboardingStates.monthlyBudgetAmount })
+        .from(onboardingStates)
+        .where(eq(onboardingStates.customerId, customerId))
+        .limit(1);
+
+      const customerMonthlyPrice = onboarding?.monthlyBudgetAmount
+        ? parseFloat(String(onboarding.monthlyBudgetAmount))
+        : null;
+      if (customerMonthlyPrice != null && customerMonthlyPrice > 0) {
+        const metaMonthlyCap = customerMonthlyPrice * 0.3;
+        const marginPercent = 70;
+        await db.insert(adsBudgetPlans).values({
+          customerId,
+          customerMonthlyPrice: String(customerMonthlyPrice),
+          metaMonthlyCap: String(metaMonthlyCap),
+          marginPercent: String(marginPercent),
+          pacing: "daily",
+          status: "active",
+        });
+        [budgetPlan] = await db
+          .select()
+          .from(adsBudgetPlans)
+          .where(eq(adsBudgetPlans.customerId, customerId))
+          .limit(1);
+      }
+    }
+
+    if (!budgetPlan) {
+      const msg = "Pricing plan missing for customer.";
+      await db
+        .update(adRuns)
+        .set({ status: "failed", finishedAt: new Date(), errorMessage: `CONFIG_ERROR: ${msg}` })
+        .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+      await job.deadLetter(msg);
+      return;
+    }
+
+    if (budgetPlan.status === "paused") {
+      const msg = "Ads are paused for this customer. Update budget plan in admin to resume.";
+      await db
+        .update(adRuns)
+        .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+        .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+      await job.deadLetter(msg);
+      return;
+    }
+
+    const customerPrice = parseFloat(String(budgetPlan.customerMonthlyPrice));
+    const metaSpendCap = parseFloat(String(budgetPlan.metaMonthlyCap));
+    const dailyMetaBudget = metaSpendCap / 30;
+    const derivedDailyBudgetCents = Math.floor(dailyMetaBudget * 100);
+
+    console.log(
+      JSON.stringify({
+        event: "ads_publish_budget",
+        runId,
+        customerId,
+        customer_price: customerPrice,
+        meta_spend_cap: metaSpendCap,
+        derived_daily_budget: dailyMetaBudget,
+        derived_daily_budget_cents: derivedDailyBudgetCents,
+      })
+    );
+
     // Mode check: real write mode
     if (allowRealWrite) {
       // Validation: meta_connections with selected_ad_account_id
@@ -193,11 +268,8 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
       };
 
       try {
-        // Step 3: Create campaign + adset if missing
+        // Step 3: Create campaign + adset if missing (use budget plan cap for Meta spend)
         if (!campaignId || !adsetId) {
-          const effectiveBudget = settings.budgetOverride ? parseFloat(String(settings.budgetOverride)) : null;
-          const dailyBudgetCents = effectiveBudget ? Math.round((effectiveBudget / 30) * 100) : 10000;
-
           const campaignPath = `/act_${actId}/campaigns`;
           const campaignBodyBase: Record<string, unknown> = {
             name: "Project Auto - Test Campaign",
@@ -241,7 +313,7 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
             status: "PAUSED",
             billing_event: "IMPRESSIONS",
             optimization_goal: "OFFSITE_CONVERSIONS",
-            daily_budget: dailyBudgetCents,
+            daily_budget: derivedDailyBudgetCents,
             targeting: { geo_locations: { countries: ["SE"] } },
           };
 

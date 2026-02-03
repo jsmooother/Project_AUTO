@@ -450,6 +450,24 @@ export const adRuns = pgTable("ad_runs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const adsBudgetPlans = pgTable(
+  "ads_budget_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    customerMonthlyPrice: numeric("customer_monthly_price", { precision: 20, scale: 4 }).notNull(),
+    metaMonthlyCap: numeric("meta_monthly_cap", { precision: 20, scale: 4 }).notNull(),
+    marginPercent: numeric("margin_percent", { precision: 5, scale: 2 }).notNull(),
+    pacing: text("pacing").notNull().default("daily"), // 'daily' | 'lifetime'
+    status: text("status").notNull().default("active"), // 'active' | 'paused'
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
 export const metaAdObjects = pgTable(
   "meta_ad_objects",
   {

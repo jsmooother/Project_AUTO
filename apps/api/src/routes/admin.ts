@@ -21,6 +21,7 @@ import {
   adSettings,
   metaAdObjects,
   metaConnections,
+  adsBudgetPlans,
 } from "@repo/db/schema";
 
 const DEMO_PASSWORD = "demo-password";
@@ -545,6 +546,60 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  // POST /admin/customers/:customerId/ads/budget - update ads budget plan (admin only)
+  app.post<{ Params: { customerId: string }; Body: { meta_monthly_cap?: number; margin_percent?: number; status?: "active" | "paused" } }>(
+    "/admin/customers/:customerId/ads/budget",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const body = request.body ?? {};
+
+      const [existing] = await db
+        .select()
+        .from(adsBudgetPlans)
+        .where(eq(adsBudgetPlans.customerId, customerId))
+        .limit(1);
+
+      if (!existing) {
+        return reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "Budget plan not found for customer. Plan is created on first publish from onboarding." },
+        });
+      }
+
+      const updates: { metaMonthlyCap?: string; marginPercent?: string; status?: string; updatedAt: Date } = {
+        updatedAt: new Date(),
+      };
+      if (typeof body.meta_monthly_cap === "number" && body.meta_monthly_cap >= 0) {
+        updates.metaMonthlyCap = String(body.meta_monthly_cap);
+      }
+      if (typeof body.margin_percent === "number" && body.margin_percent >= 0 && body.margin_percent <= 100) {
+        updates.marginPercent = String(body.margin_percent);
+      }
+      if (body.status === "active" || body.status === "paused") {
+        updates.status = body.status;
+      }
+
+      const [updated] = await db
+        .update(adsBudgetPlans)
+        .set(updates)
+        .where(eq(adsBudgetPlans.customerId, customerId))
+        .returning();
+
+      if (!updated) {
+        return reply.status(500).send({ error: { code: "INTERNAL", message: "Update failed" } });
+      }
+
+      return reply.send({
+        id: updated.id,
+        customer_id: updated.customerId,
+        customer_monthly_price: Number(updated.customerMonthlyPrice),
+        meta_monthly_cap: Number(updated.metaMonthlyCap),
+        margin_percent: Number(updated.marginPercent),
+        pacing: updated.pacing,
+        status: updated.status,
+      });
+    }
+  );
+
   // POST /admin/customers/:customerId/ads/publish - trigger ads publish for customer (dev ops)
   app.post<{ Params: { customerId: string } }>(
     "/admin/customers/:customerId/ads/publish",
@@ -667,7 +722,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const allCustomers = await db.select().from(customers).orderBy(desc(customers.createdAt));
 
     // Fetch ads-related data for all customers in parallel
-    const [allSettings, allObjects, allConnections, allItems, allOnboarding] = await Promise.all([
+    const [allSettings, allObjects, allConnections, allItems, allOnboarding, allBudgetPlans] = await Promise.all([
       db.select().from(adSettings),
       db.select().from(metaAdObjects),
       db.select().from(metaConnections),
@@ -675,6 +730,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .from(inventoryItems)
         .groupBy(inventoryItems.customerId),
       db.select().from(onboardingStates),
+      db.select().from(adsBudgetPlans),
     ]);
 
     // Build maps for quick lookup
@@ -683,6 +739,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const connectionsMap = new Map(allConnections.map((c) => [c.customerId, c]));
     const itemsMap = new Map(allItems.map((i) => [i.customerId, i.count]));
     const onboardingMap = new Map(allOnboarding.map((o) => [o.customerId, o]));
+    const budgetPlansMap = new Map(allBudgetPlans.map((p) => [p.customerId, p]));
 
     // Build campaigns list
     const campaigns = allCustomers
@@ -693,9 +750,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         const itemCount = itemsMap.get(customer.id) ?? 0;
         const onboarding = onboardingMap.get(customer.id);
 
+        const budgetPlan = budgetPlansMap.get(customer.id);
+
         // Determine campaign status
         let status: "active" | "paused" | "failed" | "pending" = "pending";
-        if (objects?.status === "active" || settings?.status === "active") {
+        if (budgetPlan?.status === "paused") {
+          status = "paused";
+        } else if (objects?.status === "active" || settings?.status === "active") {
           status = "active";
         } else if (objects?.status === "paused") {
           status = "paused";
@@ -703,13 +764,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           status = "failed";
         }
 
-        // Calculate budget
+        // Calculate budget (customer-facing from settings/onboarding; internal from budget plan)
         const budgetMonthly = settings?.budgetOverride
           ? Number(settings.budgetOverride)
           : onboarding?.monthlyBudgetAmount
             ? Number(onboarding.monthlyBudgetAmount)
-            : 0;
+            : budgetPlan
+              ? Number(budgetPlan.customerMonthlyPrice)
+              : 0;
         const currency = onboarding?.budgetCurrency ?? "SEK";
+        const customer_monthly_price = budgetPlan ? Number(budgetPlan.customerMonthlyPrice) : null;
+        const meta_monthly_cap = budgetPlan ? Number(budgetPlan.metaMonthlyCap) : null;
+        const margin_percent = budgetPlan ? Number(budgetPlan.marginPercent) : null;
+        const derived_daily_budget = meta_monthly_cap != null ? meta_monthly_cap / 30 : null;
 
         // For MVP, spend_current is simulated (0 for now, can be enhanced later)
         const spendCurrent = 0;
@@ -752,6 +819,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           formats: Array.isArray(settings?.formatsJson) ? settings.formatsJson : [],
           geo_targeting: geoTargeting,
           template,
+          // Internal pricing & spend (admin diagnostics only)
+          customer_monthly_price: customer_monthly_price ?? undefined,
+          meta_monthly_cap: meta_monthly_cap ?? undefined,
+          margin_percent: margin_percent ?? undefined,
+          derived_daily_budget: derived_daily_budget ?? undefined,
         };
       })
       .filter((c) => c.budget_monthly > 0 || c.status !== "pending"); // Only show customers with ads activity
