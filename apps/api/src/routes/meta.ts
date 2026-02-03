@@ -116,6 +116,13 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
         .where(eq(metaConnections.customerId, customerId))
         .returning();
 
+      if (!updated) {
+        return reply.status(500).send({
+          error: "INTERNAL",
+          message: "Failed to update Meta connection",
+        });
+      }
+
       return reply.send({
         status: updated.status,
         metaUserId: updated.metaUserId,
