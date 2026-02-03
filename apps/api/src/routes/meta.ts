@@ -137,6 +137,13 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       })
       .returning();
 
+    if (!created) {
+      return reply.status(500).send({
+        error: "INTERNAL",
+        message: "Failed to create Meta connection",
+      });
+    }
+
     return reply.status(201).send({
       status: created.status,
       metaUserId: created.metaUserId,
