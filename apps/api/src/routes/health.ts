@@ -1,10 +1,12 @@
 import type { FastifyInstance } from "fastify";
+import { sql } from "drizzle-orm";
 import { db } from "../lib/db.js";
-import Redis from "ioredis";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Redis = require("ioredis");
 
 async function checkDatabase(): Promise<boolean> {
   try {
-    await db.execute({ sql: "SELECT 1", params: [] });
+    await db.execute(sql`SELECT 1`);
     return true;
   } catch {
     return false;
@@ -12,7 +14,7 @@ async function checkDatabase(): Promise<boolean> {
 }
 
 async function checkRedis(): Promise<boolean> {
-  let redis: Redis | null = null;
+  let redis: { ping: () => Promise<string>; quit: () => Promise<string> } | null = null;
   try {
     // Parse REDIS_URL to get connection options
     const url = process.env["REDIS_URL"];
@@ -21,6 +23,7 @@ async function checkRedis(): Promise<boolean> {
     } else {
       redis = new Redis({ host: "localhost", port: 6379, maxRetriesPerRequest: 1, connectTimeout: 1000 });
     }
+    if (!redis) return false;
     await redis.ping();
     await redis.quit();
     return true;
