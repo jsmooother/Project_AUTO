@@ -98,6 +98,13 @@ function CardSection({
   );
 }
 
+interface MetaConnectionStatus {
+  status: "disconnected" | "connected" | "error";
+  metaUserId: string | null;
+  adAccountId: string | null;
+  scopes: string[] | null;
+}
+
 export default function SettingsPage() {
   const { auth } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -109,20 +116,28 @@ export default function SettingsPage() {
   const [companyName, setCompanyName] = useState("");
   const [saveLoading, setSaveLoading] = useState(false);
   const [updateUrlLoading, setUpdateUrlLoading] = useState(false);
+  const [metaConnection, setMetaConnection] = useState<MetaConnectionStatus | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
+  const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
 
   useEffect(() => {
     if (!customerId) return;
-    apiGet<{ data: unknown[]; source?: { websiteUrl: string; createdAt?: string } }>(
-      "/inventory/items",
-      { customerId }
-    ).then((res) => {
-      if (res.ok) {
-        setSource(res.data.source ?? null);
-        setItemsCount(Array.isArray(res.data.data) ? res.data.data.length : 0);
-        setWebsiteUrl(res.data.source?.websiteUrl ?? "");
+    Promise.all([
+      apiGet<{ data: unknown[]; source?: { websiteUrl: string; createdAt?: string } }>(
+        "/inventory/items",
+        { customerId }
+      ),
+      apiGet<MetaConnectionStatus>("/meta/status", { customerId }),
+    ]).then(([inv, meta]) => {
+      if (inv.ok) {
+        setSource(inv.data.source ?? null);
+        setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
+        setWebsiteUrl(inv.data.source?.websiteUrl ?? "");
       }
+      if (meta.ok) setMetaConnection(meta.data);
       setLoading(false);
     });
   }, [customerId]);
@@ -149,6 +164,32 @@ export default function SettingsPage() {
     const res = await apiPost("/inventory/source", { websiteUrl: websiteUrl.trim() }, { customerId });
     setUpdateUrlLoading(false);
     if (res.ok) setSource({ websiteUrl: websiteUrl.trim() });
+  };
+
+  const handleMetaConnect = async () => {
+    if (!customerId) return;
+    setMetaLoading(true);
+    setMetaError(null);
+    const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
+    setMetaLoading(false);
+    if (res.ok) {
+      setMetaConnection(res.data);
+    } else {
+      setMetaError(res.error);
+    }
+  };
+
+  const handleMetaDisconnect = async () => {
+    if (!customerId) return;
+    setMetaLoading(true);
+    setMetaError(null);
+    const res = await apiPost<{ success: boolean }>("/meta/disconnect", undefined, { customerId });
+    setMetaLoading(false);
+    if (res.ok) {
+      setMetaConnection({ status: "disconnected", metaUserId: null, adAccountId: null, scopes: null });
+    } else {
+      setMetaError(res.error);
+    }
   };
 
   // Notification toggles (UI only, no backend)
@@ -433,37 +474,137 @@ export default function SettingsPage() {
           title="Connected Meta account"
           description="Your Meta (Facebook/Instagram) advertising platform"
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              padding: "1rem",
-              border: "1px solid var(--pa-border)",
-              borderRadius: "var(--pa-radius)",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 4 }}>
-                <span style={{ fontWeight: 500 }}>Not connected</span>
-                <span
+          {metaError && (
+            <div
+              style={{
+                padding: "0.75rem",
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "var(--pa-radius)",
+                marginBottom: "1rem",
+                fontSize: "0.875rem",
+                color: "#991b1b",
+              }}
+            >
+              {metaError}
+            </div>
+          )}
+          {metaConnection?.status === "connected" ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                padding: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "var(--pa-radius)",
+                marginBottom: "1rem",
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>Connected</span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.2rem 0.5rem",
+                      background: "#d1fae5",
+                      color: "#065f46",
+                      border: "1px solid #a7f3d0",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    <CheckCircle2 style={{ width: 12, height: 12 }} />
+                    Active
+                  </span>
+                </div>
+                {metaConnection.adAccountId && (
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.25rem" }}>
+                    Ad Account: {metaConnection.adAccountId}
+                  </div>
+                )}
+                {metaConnection.metaUserId && (
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                    User ID: {metaConnection.metaUserId}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleMetaDisconnect}
+                disabled={metaLoading}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.875rem",
+                  border: "1px solid var(--pa-border)",
+                  borderRadius: 6,
+                  background: "white",
+                  cursor: metaLoading ? "not-allowed" : "pointer",
+                  color: "var(--pa-dark)",
+                  fontWeight: 500,
+                }}
+              >
+                {metaLoading ? "Disconnecting..." : "Disconnect"}
+              </button>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                padding: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "var(--pa-radius)",
+                marginBottom: "1rem",
+              }}
+            >
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>Not connected</span>
+                  <span
+                    style={{
+                      padding: "0.2rem 0.5rem",
+                      background: "#f3f4f6",
+                      color: "var(--pa-gray)",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                    }}
+                  >
+                    {allowDevMeta ? "Dev mode available" : "Coming soon"}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                  {allowDevMeta
+                    ? "Use dev connect to test the integration flow"
+                    : "Meta Ads integration will be available in a future release"}
+                </div>
+              </div>
+              {allowDevMeta && (
+                <button
+                  type="button"
+                  onClick={handleMetaConnect}
+                  disabled={metaLoading}
                   style={{
-                    padding: "0.2rem 0.5rem",
-                    background: "#f3f4f6",
-                    color: "var(--pa-gray)",
+                    padding: "0.5rem 1rem",
+                    fontSize: "0.875rem",
                     border: "1px solid var(--pa-border)",
-                    borderRadius: 4,
-                    fontSize: "0.75rem",
+                    borderRadius: 6,
+                    background: "white",
+                    cursor: metaLoading ? "not-allowed" : "pointer",
+                    color: "var(--pa-dark)",
+                    fontWeight: 500,
                   }}
                 >
-                  Coming soon
-                </span>
-              </div>
-              <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                Meta Ads integration will be available in a future release
-              </div>
+                  {metaLoading ? "Connecting..." : "Dev: Fake connect"}
+                </button>
+              )}
             </div>
-          </div>
+          )}
           <div
             style={{
               marginTop: "1rem",

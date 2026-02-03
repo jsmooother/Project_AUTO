@@ -23,6 +23,13 @@ interface OnboardingStatus {
   budgetInfoCompleted: boolean;
 }
 
+interface MetaConnectionStatus {
+  status: "disconnected" | "connected" | "error";
+  metaUserId: string | null;
+  adAccountId: string | null;
+  scopes: string[] | null;
+}
+
 export default function DashboardPage() {
   const { auth } = useAuth();
   const router = useRouter();
@@ -30,13 +37,17 @@ export default function DashboardPage() {
   const [websiteSource, setWebsiteSource] = useState<{ websiteUrl: string } | null>(null);
   const [itemsCount, setItemsCount] = useState(0);
   const [templateConfig, setTemplateConfig] = useState<{ id: string; status: string } | null>(null);
+  const [metaConnection, setMetaConnection] = useState<MetaConnectionStatus | null>(null);
   const [runNowLoading, setRunNowLoading] = useState(false);
   const [runNowError, setRunNowError] = useState<string | null>(null);
   const [runNowHint, setRunNowHint] = useState<string | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
+  const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
 
   const load = () => {
     if (!customerId) return;
@@ -46,15 +57,17 @@ export default function DashboardPage() {
       apiGet<OnboardingStatus>("/onboarding/status", { customerId }),
       apiGet<{ data: unknown[]; source?: { websiteUrl: string } }>("/inventory/items", { customerId }),
       apiGet<{ id: string; status: string } | null>("/templates/config", { customerId }),
+      apiGet<MetaConnectionStatus>("/meta/status", { customerId }),
     ])
-      .then(([onb, inv, cfg]) => {
+      .then(([onb, inv, cfg, meta]) => {
         if (onb.ok) setOnboardingStatus(onb.data);
         if (inv.ok) {
           setWebsiteSource(inv.data.source ?? null);
           setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
         }
         if (cfg.ok) setTemplateConfig(cfg.data ?? null);
-        if (!onb.ok && !inv.ok && !cfg.ok) setError("Failed to load dashboard data");
+        if (meta.ok) setMetaConnection(meta.data);
+        if (!onb.ok && !inv.ok && !cfg.ok && !meta.ok) setError("Failed to load dashboard data");
       })
       .catch(() => setError("Failed to load dashboard"))
       .finally(() => setLoading(false));
@@ -93,9 +106,35 @@ export default function DashboardPage() {
 
   const websiteConnected = !!websiteSource;
   const hasInventory = itemsCount > 0;
-  const metaConnected = false; // Placeholder
+  const metaConnected = metaConnection?.status === "connected";
   const isSetupComplete = websiteConnected && hasInventory; // Automation ready when website + inventory
   const needsOnboarding = onboardingStatus && !onboardingStatus.companyInfoCompleted;
+
+  const handleMetaConnect = async () => {
+    if (!customerId) return;
+    setMetaLoading(true);
+    setMetaError(null);
+    const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
+    setMetaLoading(false);
+    if (res.ok) {
+      setMetaConnection(res.data);
+    } else {
+      setMetaError(res.error);
+    }
+  };
+
+  const handleMetaDisconnect = async () => {
+    if (!customerId) return;
+    setMetaLoading(true);
+    setMetaError(null);
+    const res = await apiPost<{ success: boolean }>("/meta/disconnect", undefined, { customerId });
+    setMetaLoading(false);
+    if (res.ok) {
+      setMetaConnection({ status: "disconnected", metaUserId: null, adAccountId: null, scopes: null });
+    } else {
+      setMetaError(res.error);
+    }
+  };
 
   // Only show action-required banner when there's an actual problem with clear next step
   const setupProblem: { type: "no_website" | "no_inventory"; message: string; action: string; href: string } | null =
@@ -354,8 +393,13 @@ export default function DashboardPage() {
             >
               <span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Meta Ads</div>
+              {metaError && (
+                <div style={{ fontSize: "0.75rem", color: "#dc2626", marginBottom: "0.5rem" }}>
+                  {metaError}
+                </div>
+              )}
               {metaConnected ? (
                 <>
                   <span
@@ -375,9 +419,25 @@ export default function DashboardPage() {
                     <CheckCircle2 style={{ width: 12, height: 12 }} />
                     Connected
                   </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    Acme Inc. Ads
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
+                    {metaConnection?.adAccountId ? `Account: ${metaConnection.adAccountId}` : "Connected"}
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleMetaDisconnect}
+                    disabled={metaLoading}
+                    style={{
+                      padding: "0.25rem 0.5rem",
+                      fontSize: "0.75rem",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 4,
+                      background: "white",
+                      cursor: metaLoading ? "not-allowed" : "pointer",
+                      color: "var(--pa-gray)",
+                    }}
+                  >
+                    {metaLoading ? "Disconnecting..." : "Disconnect"}
+                  </button>
                 </>
               ) : (
                 <>
@@ -389,14 +449,36 @@ export default function DashboardPage() {
                       border: "1px solid var(--pa-border)",
                       borderRadius: 4,
                       fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
+                      marginBottom: "0.5rem",
                       display: "inline-block",
                     }}
                   >
                     Not connected
                   </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    Coming soon
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    {allowDevMeta && (
+                      <button
+                        type="button"
+                        onClick={handleMetaConnect}
+                        disabled={metaLoading}
+                        style={{
+                          padding: "0.25rem 0.5rem",
+                          fontSize: "0.75rem",
+                          border: "1px solid var(--pa-border)",
+                          borderRadius: 4,
+                          background: "white",
+                          cursor: metaLoading ? "not-allowed" : "pointer",
+                          color: "var(--pa-dark)",
+                        }}
+                      >
+                        {metaLoading ? "Connecting..." : "Dev: Fake connect"}
+                      </button>
+                    )}
+                    {!allowDevMeta && (
+                      <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                        Coming soon
+                      </div>
+                    )}
                   </div>
                 </>
               )}
