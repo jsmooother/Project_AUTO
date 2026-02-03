@@ -3,19 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getAdminHeaders } from "../../../lib/adminHeaders";
 
 interface Customer {
   id: string;
   name: string;
   status: string;
   createdAt: string;
-}
-
-function getAdminHeaders(): Record<string, string> {
-  const key = typeof window !== "undefined" ? localStorage.getItem("adminApiKey") : null;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) h["x-admin-key"] = key;
-  return h;
 }
 
 const isDev = process.env.NODE_ENV === "development";

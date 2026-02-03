@@ -19,7 +19,11 @@ import { adminRoutes } from "./routes/admin.js";
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true, credentials: true });
-await app.register(cookie, { secret: process.env["COOKIE_SECRET"] ?? "dev-secret-change-in-production" });
+const cookieSecret = process.env["COOKIE_SECRET"] ?? "dev-secret-change-in-production";
+await app.register(cookie, { secret: cookieSecret });
+if (!process.env["COOKIE_SECRET"]) {
+  app.log.warn("COOKIE_SECRET is not set; using the insecure default (dev-only).");
+}
 
 app.addHook("preHandler", (request, reply, done) => {
   const path = request.url?.split("?")[0];

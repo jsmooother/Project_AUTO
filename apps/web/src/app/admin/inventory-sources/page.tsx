@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getAdminHeaders } from "../../../lib/adminHeaders";
 import Link from "next/link";
 
 interface Source {
@@ -10,13 +11,6 @@ interface Source {
   status: string;
   lastCrawledAt: string | null;
   createdAt: string;
-}
-
-function getAdminHeaders(): Record<string, string> {
-  const key = typeof window !== "undefined" ? localStorage.getItem("adminApiKey") : null;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) h["x-admin-key"] = key;
-  return h;
 }
 
 export default function AdminInventorySourcesPage() {
