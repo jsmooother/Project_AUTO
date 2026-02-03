@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { getAdminHeaders } from "../../../../lib/adminHeaders";
 
 type TabId = "overview" | "runs" | "inventory" | "billing";
 
@@ -15,13 +16,6 @@ interface CustomerDetail {
     previewRuns: number;
     templateStatus: string | null;
   };
-}
-
-function getAdminHeaders(): Record<string, string> {
-  const key = typeof window !== "undefined" ? localStorage.getItem("adminApiKey") : null;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) h["x-admin-key"] = key;
-  return h;
 }
 
 export default function AdminCustomerDetailPage() {

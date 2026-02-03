@@ -15,6 +15,7 @@ import type {
 import { JOB_TYPES } from "./adapter.js";
 
 const QUEUE_PREFIX = "repo";
+let warnedInvalidRedisUrl = false;
 
 export type ValidateCorrelationResult =
   | { ok: true; correlation: CorrelationContext }
@@ -82,6 +83,10 @@ function getConnectionOptions(): ConnectionOptions {
         maxRetriesPerRequest: null,
       } as ConnectionOptions;
     } catch {
+      if (!warnedInvalidRedisUrl) {
+        console.warn(`Invalid REDIS_URL "${url}", falling back to localhost:6379.`);
+        warnedInvalidRedisUrl = true;
+      }
       return { host: "localhost", port: 6379, maxRetriesPerRequest: null };
     }
   }
