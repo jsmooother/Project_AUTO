@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import { getAdminHeaders } from "../../../lib/adminHeaders";
 
 interface Run {
   id: string;
@@ -15,13 +16,6 @@ interface Run {
   finishedAt: string | null;
   errorMessage: string | null;
   createdAt: string;
-}
-
-function getAdminHeaders(): Record<string, string> {
-  const key = typeof window !== "undefined" ? localStorage.getItem("adminApiKey") : null;
-  const h: Record<string, string> = { "Content-Type": "application/json" };
-  if (key) h["x-admin-key"] = key;
-  return h;
 }
 
 function RunsContent() {

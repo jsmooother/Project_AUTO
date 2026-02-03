@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
 
 const ADMIN_KEY_HEADER = "x-admin-key";
+let warnedInsecureAdmin = false;
 
 function allowWithoutKey(): boolean {
   const nodeEnv = process.env["NODE_ENV"];
@@ -19,6 +20,10 @@ export function requireAdminContext(
   done: (err?: Error) => void
 ): void {
   if (allowWithoutKey()) {
+    if (!warnedInsecureAdmin) {
+      console.warn("ALLOW_INSECURE_ADMIN enabled; admin routes are unprotected in development.");
+      warnedInsecureAdmin = true;
+    }
     done();
     return;
   }

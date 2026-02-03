@@ -19,7 +19,11 @@ import { adminRoutes } from "./routes/admin.js";
 const app = Fastify({ logger: true });
 
 await app.register(cors, { origin: true, credentials: true });
-await app.register(cookie, { secret: process.env["COOKIE_SECRET"] ?? "dev-secret-change-in-production" });
+const cookieSecret = process.env["COOKIE_SECRET"] ?? "dev-secret-change-in-production";
+await app.register(cookie, { secret: cookieSecret });
+if (!process.env["COOKIE_SECRET"]) {
+  app.log.warn("COOKIE_SECRET is not set; using the insecure default (dev-only).");
+}
 
 app.addHook("preHandler", (request, reply, done) => {
   const path = request.url?.split("?")[0];
@@ -57,11 +61,34 @@ await app.register(itemsRoutes);
 await app.register(supportCaseRoutes);
 await app.register(adminRoutes, { prefix: "" });
 
+// Log configuration on startup
+function redactPassword(url: string | undefined): string {
+  if (!url) return "not set";
+  try {
+    const u = new URL(url);
+    if (u.password) {
+      u.password = "***";
+    }
+    return u.toString();
+  } catch {
+    return url.includes("@") ? url.replace(/:[^:@]+@/, ":***@") : url;
+  }
+}
+
+const databaseUrl = redactPassword(process.env["DATABASE_URL"]);
+const redisUrl = redactPassword(process.env["REDIS_URL"]);
+
+app.log.info(`DATABASE_URL: ${databaseUrl}`);
+app.log.info(`REDIS_URL: ${redisUrl || "not set (defaults to localhost:6379)"}`);
+
 const port = parseInt(process.env["PORT"] ?? "3001", 10);
 const host = process.env["HOST"] ?? "0.0.0.0";
 
+app.log.info(`Starting API server on ${host}:${port}`);
+
 try {
   await app.listen({ port, host });
+  app.log.info(`API server listening at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
 } catch (err) {
   app.log.error(err);
   process.exit(1);

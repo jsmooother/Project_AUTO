@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
@@ -57,8 +57,10 @@ export default function InventoryPage() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!customerId) return;
+    setLoading(true);
+    setError(null);
     apiGet<{ data: InventoryItem[]; source?: { id: string; websiteUrl: string } }>(
       "/inventory/items",
       { customerId }
@@ -67,37 +69,33 @@ export default function InventoryPage() {
         if (res.ok) {
           setItems(res.data.data ?? []);
           setSource(res.data.source ?? null);
-        } else setError(res.error);
+        } else {
+          setError(res.error);
+        }
       })
-      .catch(() => setError("Failed to load inventory"))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : "Failed to load inventory");
+      })
       .finally(() => setLoading(false));
-  };
+  }, [customerId]);
 
   useEffect(() => {
     if (customerId) load();
-  }, [customerId]);
+  }, [customerId, load]);
 
-  const handleSyncNow = async () => {
-    if (!customerId) return;
-    setSyncLoading(true);
-    const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
-    setSyncLoading(false);
-    if (res.ok) load();
-  };
-
-  if (auth.status !== "authenticated") return <LoadingSpinner />;
-  if (loading) return <LoadingSpinner />;
-
-  const sourceDomain = source?.websiteUrl ? (() => {
-    try { return new URL(source.websiteUrl).hostname; } catch { return source.websiteUrl; }
-  })() : "—";
-
-  const now = Date.now();
-  const oneDayAgo = now - 24 * 60 * 60 * 1000;
-  const newCount = items.filter((i) => new Date(i.firstSeenAt).getTime() > oneDayAgo).length;
-  const removedCount = 0; // MVP: not tracked
-  const withImagesPct = items.length > 0 ? "—" : "—"; // MVP: no image data
-
+  // All hooks must be called before any conditional returns
+  const oneDayAgo = useMemo(() => Date.now() - 24 * 60 * 60 * 1000, []);
+  
+  const newCount = useMemo(() => {
+    return items.filter((i) => {
+      try {
+        return i.firstSeenAt && new Date(i.firstSeenAt).getTime() > oneDayAgo;
+      } catch {
+        return false;
+      }
+    }).length;
+  }, [items, oneDayAgo]);
+  
   const filtered = useMemo(() => {
     let list = [...items];
     if (search) {
@@ -109,14 +107,49 @@ export default function InventoryPage() {
       );
     }
     if (statusFilter === "active") list = list.filter((i) => i.status === "active");
-    if (statusFilter === "new") list = list.filter((i) => new Date(i.firstSeenAt).getTime() > oneDayAgo);
+    if (statusFilter === "new") {
+      list = list.filter((i) => {
+        try {
+          return i.firstSeenAt && new Date(i.firstSeenAt).getTime() > oneDayAgo;
+        } catch {
+          return false;
+        }
+      });
+    }
     if (statusFilter === "removed") list = list.filter((i) => i.status === "removed");
-    if (sortBy === "recent") list.sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime());
+    if (sortBy === "recent") {
+      list.sort((a, b) => {
+        try {
+          return new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+    }
     if (sortBy === "price-high") list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     if (sortBy === "price-low") list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     if (sortBy === "title") list.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
     return list;
-  }, [items, search, statusFilter, sortBy]);
+  }, [items, search, statusFilter, sortBy, oneDayAgo]);
+
+  const handleSyncNow = async () => {
+    if (!customerId) return;
+    setSyncLoading(true);
+    const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
+    setSyncLoading(false);
+    if (res.ok) load();
+  };
+
+  // Now we can do conditional returns after all hooks
+  if (auth.status !== "authenticated") return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+
+  const sourceDomain = source?.websiteUrl ? (() => {
+    try { return new URL(source.websiteUrl).hostname; } catch { return source.websiteUrl; }
+  })() : "—";
+  
+  const removedCount = 0; // MVP: not tracked
+  const withImagesPct = items.length > 0 ? "—" : "—"; // MVP: no image data
 
   const totalFiltered = filtered.length;
   const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
