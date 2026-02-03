@@ -35,55 +35,67 @@ See:
 
 ### Quick start
 
-1. **Start database services:**
-   ```bash
-   docker compose up -d
-   ```
-
-2. **Set up environment:**
+1. **Set up environment:**
    ```bash
    cp .env.example .env
    # Edit .env if needed (defaults work for local Docker setup)
    ```
 
-3. **Install dependencies:**
+2. **Install dependencies:**
    ```bash
    pnpm install
    ```
 
-4. **Run migrations:**
+3. **Run migrations:**
    ```bash
-   pnpm --filter @repo/db db:migrate
+   pnpm db:migrate
    ```
 
-5. **Start dev servers** (run each in its own terminal):
+4. **Start all dev servers:**
    ```bash
-   pnpm --filter @repo/api dev
-   pnpm --filter @repo/worker dev
-   pnpm --filter @repo/web dev
+   pnpm dev:up
    ```
-   API runs on http://localhost:3001, web on http://localhost:3000.
+   This starts Docker services (Postgres + Redis) and all dev servers:
+   - **API**: http://localhost:3001
+   - **Web**: http://localhost:3000
+   - **Worker**: running in background
 
-   **If login (or any page) shows 404 for `_next/static/chunks/...`:**  
-   The wrong process may be on port 3000, or the Next.js cache is stale. Fix:
-   - Stop anything using port 3000.
-   - From repo root: `pnpm --filter @repo/web dev:clean` (clears `.next` and starts web on 3000).  
-   - Or: `cd apps/web && rm -rf .next && pnpm dev`, then open http://localhost:3000/login.
+   **To stop everything:**
+   ```bash
+   pnpm dev:down
+   ```
 
-   **If web build fails with `404` for `@next/swc-darwin-arm64` (or similar SWC tarball):**  
-   Next.js and SWC versions must match. See `docs/35_next_swc_build.md` for pinning and troubleshooting. Use `pnpm --filter @repo/web build:clean` for a clean build.
+   **If you see 404/500 errors or weird behavior:**
+   ```bash
+   pnpm dev:reset
+   ```
+   This stops all services, clears Next.js cache, and restarts everything fresh.
 
-   **If you see 500 Internal Server Error (or EADDRINUSE on restart):**
-   - Run: `./scripts/restart-dev.sh` to kill processes on 3000/3001/3002 and clear `.next` cache.
-   - Then start dev servers again (API, worker, web).
-   - If API runs on a different port (e.g. 3002), set `NEXT_PUBLIC_API_URL=http://localhost:3002` in `.env` so the web app can reach it.
+### Troubleshooting
+
+**If login (or any page) shows 404 for `_next/static/chunks/...`:**  
+Next.js cache may be stale. Run `pnpm dev:reset` to clear cache and restart.
+
+**If web build fails with `404` for `@next/swc-darwin-arm64`:**  
+Next.js and SWC versions must match. See `docs/35_next_swc_build.md`. Run `pnpm dev:reset` to clear cache.
+
+**If you see port conflicts (EADDRINUSE):**
+- Run `pnpm dev:down` to stop all processes
+- Check what's using the port: `lsof -i:3000` or `lsof -i:3001`
+- Run `pnpm dev:reset` for a clean restart
+
+**Check service health:**
+- API health: `curl http://localhost:3001/health` (returns `{ok: true, db: true, redis: true}`)
+- Check startup logs for connection info (DATABASE_URL, REDIS_URL, NEXT_PUBLIC_API_URL are logged on startup)
 
 ### Docker services
 
 - **Postgres**: `localhost:5432` (user: `postgres`, password: `postgres`, db: `project_auto`)
 - **Redis**: `localhost:6379`
 
-**Commands:**
+**Note:** Docker services are automatically managed by `pnpm dev:up` and `pnpm dev:down`.
+
+**Manual Docker commands:**
 - Start: `docker compose up -d`
 - Stop: `docker compose down`
 - View logs: `docker compose logs -f`
@@ -94,10 +106,15 @@ See:
 Copy `.env.example` to `.env` and adjust as needed. The example includes defaults for local Docker setup.
 
 **Required for local dev:**
-- `DATABASE_URL` - Postgres connection string
-- `REDIS_URL` - Redis connection string
+- `DATABASE_URL` - Postgres connection string (defaults to `postgres://postgres:postgres@localhost:5432/project_auto` for Docker)
+- `REDIS_URL` - Redis connection string (defaults to `redis://localhost:6379` for Docker)
 - `COOKIE_SECRET` - Session cookie signing (dev default in example)
 - `NEXT_PUBLIC_API_URL` - API base URL for web app (default `http://localhost:3001`)
+
+**Port configuration:**
+- API always runs on port **3001** (configurable via `PORT` env var, defaults to 3001)
+- Web always runs on port **3000** (hardcoded in Next.js config)
+- Worker uses the same env vars as API and logs clearly on startup
 
 **Optional:**
 - `ALLOW_INSECURE_ADMIN=true` - In dev, skip `x-admin-key` for Admin API

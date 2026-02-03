@@ -142,9 +142,6 @@ export default function LoginPage() {
                 <label htmlFor="password" style={{ fontSize: "0.875rem", fontWeight: 500 }}>
                   Password
                 </label>
-                <a href="#" style={{ fontSize: "0.875rem", color: "var(--pa-blue)" }}>
-                  Forgot password?
-                </a>
               </div>
               <input
                 id="password"
@@ -161,6 +158,11 @@ export default function LoginPage() {
                   background: "#f3f4f6",
                 }}
               />
+              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                <a href="#" style={{ fontSize: "0.875rem", color: "var(--pa-blue)" }}>
+                  Forgot password?
+                </a>
+              </div>
             </div>
 
             <button

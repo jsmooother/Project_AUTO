@@ -18,6 +18,9 @@
     },
     "scripts": {
       "dev": "turbo dev",
+      "dev:up": "./scripts/dev-up.sh",
+      "dev:down": "./scripts/dev-down.sh",
+      "dev:reset": "./scripts/dev-down.sh && rm -rf apps/web/.next && ./scripts/dev-up.sh",
       "build": "turbo build",
       "lint": "turbo lint",
       "test": "turbo test",
