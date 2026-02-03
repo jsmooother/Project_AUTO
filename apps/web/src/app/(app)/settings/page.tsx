@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { ErrorBanner } from "@/components/ErrorBanner";
 import { User, Globe, AlertTriangle, CheckCircle2, Bell, Loader2 } from "lucide-react";
 
 function MetaIcon({ size = 20 }: { size?: number }) {
@@ -105,6 +106,14 @@ interface MetaConnectionStatus {
   adAccountId: string | null;
   scopes: string[] | null;
   tokenExpiresAt?: string | null;
+  selectedAdAccountId?: string | null;
+}
+
+interface MetaAdAccount {
+  id: string;
+  name?: string;
+  account_status?: number;
+  currency?: string;
 }
 
 function SettingsPage() {
@@ -123,6 +132,19 @@ function SettingsPage() {
   const [metaConnection, setMetaConnection] = useState<MetaConnectionStatus | null>(null);
   const [metaLoading, setMetaLoading] = useState(false);
   const [metaError, setMetaError] = useState<string | null>(null);
+  const [smokeTestLoading, setSmokeTestLoading] = useState(false);
+  const [smokeTestResult, setSmokeTestResult] = useState<{
+    ok: boolean;
+    me?: { id: string; name: string | null };
+    adAccounts?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
+    hint?: string;
+  } | null>(null);
+  const [smokeTestError, setSmokeTestError] = useState<{ message: string; hint?: string } | null>(null);
+  const [adAccounts, setAdAccounts] = useState<MetaAdAccount[]>([]);
+  const [adAccountsLoading, setAdAccountsLoading] = useState(false);
+  const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
+  const [selectAdAccountLoading, setSelectAdAccountLoading] = useState(false);
+  const [adAccountError, setAdAccountError] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
   const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
@@ -142,10 +164,47 @@ function SettingsPage() {
         setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
         setWebsiteUrl(inv.data.source?.websiteUrl ?? "");
       }
-      if (meta.ok) setMetaConnection(meta.data);
+      if (meta.ok) {
+        setMetaConnection(meta.data);
+        setSelectedAdAccountId(meta.data.selectedAdAccountId ?? "");
+      }
       setLoading(false);
     });
   }, [customerId]);
+
+  const handleFetchAdAccounts = useCallback(async () => {
+    if (!customerId) return;
+    setAdAccountsLoading(true);
+    setAdAccountError(null);
+    const res = await apiGet<{ data: MetaAdAccount[] }>("/meta/ad-accounts", { customerId });
+    setAdAccountsLoading(false);
+    if (res.ok) {
+      setAdAccounts(res.data.data ?? []);
+    } else {
+      setAdAccountError(res.errorDetail?.error ?? res.error ?? "Failed to fetch ad accounts");
+    }
+  }, [customerId]);
+
+  // Fetch ad accounts when Meta is connected
+  useEffect(() => {
+    if (metaConnection?.status === "connected" && customerId) {
+      handleFetchAdAccounts();
+    }
+  }, [metaConnection?.status, customerId, handleFetchAdAccounts]);
+
+  const handleSelectAdAccount = async () => {
+    if (!customerId || !selectedAdAccountId) return;
+    setSelectAdAccountLoading(true);
+    setAdAccountError(null);
+    const res = await apiPost<MetaConnectionStatus>("/meta/ad-accounts/select", { adAccountId: selectedAdAccountId }, { customerId });
+    setSelectAdAccountLoading(false);
+    if (res.ok) {
+      setMetaConnection(res.data);
+      setSelectedAdAccountId(res.data.selectedAdAccountId ?? "");
+    } else {
+      setAdAccountError(res.errorDetail?.error ?? res.error ?? "Failed to select ad account");
+    }
+  };
 
   // Handle OAuth callback query params
   useEffect(() => {
@@ -223,8 +282,37 @@ function SettingsPage() {
     setMetaLoading(false);
     if (res.ok) {
       setMetaConnection({ status: "disconnected", metaUserId: null, adAccountId: null, scopes: null });
+      setSmokeTestResult(null);
+      setSmokeTestError(null);
     } else {
       setMetaError(res.error);
+    }
+  };
+
+  const handleSmokeTest = async () => {
+    if (!customerId) return;
+    setSmokeTestLoading(true);
+    setSmokeTestError(null);
+    setSmokeTestResult(null);
+
+    const res = await apiGet<{
+      ok: boolean;
+      me?: { id: string; name: string | null };
+      adAccounts?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
+      hint?: string;
+    }>("/meta/debug/smoke", { customerId });
+
+    setSmokeTestLoading(false);
+
+    if (res.ok) {
+      setSmokeTestResult(res.data);
+      setSmokeTestError(null);
+    } else {
+      setSmokeTestError({
+        message: res.errorDetail?.error ?? res.error ?? "Smoke test failed",
+        hint: res.errorDetail?.hint,
+      });
+      setSmokeTestResult(null);
     }
   };
 
@@ -596,7 +684,102 @@ function SettingsPage() {
                 </button>
               </div>
             </div>
-          ) : (
+          )}
+          {/* Ad Account Selection */}
+          {metaConnection?.status === "connected" && (
+            <div
+              style={{
+                padding: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "var(--pa-radius)",
+                marginBottom: "1rem",
+                background: "#f9fafb",
+              }}
+            >
+              <div style={{ marginBottom: "0.75rem" }}>
+                <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 2 }}>Ad Account Selection</h4>
+                <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)" }}>Select which Meta ad account to use for your campaigns</p>
+              </div>
+              {adAccountError && (
+                <div style={{ marginBottom: "0.75rem" }}>
+                  <ErrorBanner message={adAccountError} />
+                </div>
+              )}
+              {metaConnection.selectedAdAccountId && (
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    background: "#d1fae5",
+                    border: "1px solid #a7f3d0",
+                    borderRadius: "var(--pa-radius)",
+                    marginBottom: "0.75rem",
+                    fontSize: "0.875rem",
+                    color: "#065f46",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <CheckCircle2 size={16} />
+                    <span>
+                      <strong>Selected account:</strong> {adAccounts.find((acc) => acc.id === metaConnection.selectedAdAccountId)?.name ?? metaConnection.selectedAdAccountId}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="ad-account-select" style={{ display: "block", fontSize: "0.875rem", marginBottom: 4 }}>
+                    Ad Account
+                  </label>
+                  <select
+                    id="ad-account-select"
+                    value={selectedAdAccountId}
+                    onChange={(e) => setSelectedAdAccountId(e.target.value)}
+                    disabled={adAccountsLoading || selectAdAccountLoading}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem 0.75rem",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 6,
+                      fontSize: "0.875rem",
+                      background: "white",
+                      cursor: adAccountsLoading || selectAdAccountLoading ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <option value="">{adAccountsLoading ? "Loading accounts..." : "Select an ad account"}</option>
+                    {adAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.name ?? acc.id} {acc.account_status === 1 ? "(Active)" : acc.account_status ? `(Status: ${acc.account_status})` : ""} {acc.currency ? `- ${acc.currency}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={handleSelectAdAccount}
+                    disabled={!selectedAdAccountId || selectAdAccountLoading || adAccountsLoading}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 6,
+                      background: !selectedAdAccountId || selectAdAccountLoading ? "#d1d5db" : "var(--pa-dark)",
+                      color: "white",
+                      cursor: !selectedAdAccountId || selectAdAccountLoading ? "not-allowed" : "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {selectAdAccountLoading ? "Saving..." : "Save Selection"}
+                  </button>
+                </div>
+              </div>
+              {adAccounts.length === 0 && !adAccountsLoading && (
+                <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginTop: "0.5rem" }}>No ad accounts found. Make sure your Meta account has ad accounts set up.</p>
+              )}
+            </div>
+          )}
+          {metaConnection?.status !== "connected" ? (
             <div
               style={{
                 display: "flex",
@@ -666,6 +849,107 @@ function SettingsPage() {
                 >
                   {metaLoading ? "Connecting..." : "Connect Meta"}
                 </button>
+              )}
+            </div>
+          )}
+          {/* Meta Smoke Test */}
+          {metaConnection?.status === "connected" && (
+            <div
+              style={{
+                marginTop: "1rem",
+                padding: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "var(--pa-radius)",
+                background: "#f9fafb",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <div>
+                  <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 2 }}>Meta API Connection Test</h4>
+                  <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)" }}>Verify your Meta access token works with the Graph API</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSmokeTest}
+                  disabled={smokeTestLoading}
+                  style={{
+                    padding: "0.375rem 0.75rem",
+                    border: "1px solid var(--pa-border)",
+                    borderRadius: 6,
+                    background: "white",
+                    cursor: smokeTestLoading ? "not-allowed" : "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  {smokeTestLoading ? (
+                    <>
+                      <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                      Testing...
+                    </>
+                  ) : (
+                    "Run Meta smoke test"
+                  )}
+                </button>
+              </div>
+              {smokeTestError && (
+                <div style={{ marginTop: "0.75rem" }}>
+                  <ErrorBanner message={smokeTestError.message} hint={smokeTestError.hint} />
+                </div>
+              )}
+              {smokeTestResult && smokeTestResult.ok && (
+                <div
+                  style={{
+                    marginTop: "0.75rem",
+                    padding: "0.75rem",
+                    background: "white",
+                    border: "1px solid #d1fae5",
+                    borderRadius: "var(--pa-radius)",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <CheckCircle2 size={16} color="#059669" />
+                    <span style={{ fontWeight: 500, fontSize: "0.875rem", color: "#065f46" }}>Connection successful</span>
+                  </div>
+                  {smokeTestResult.me && (
+                    <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
+                      <div>
+                        <strong>Me:</strong> {smokeTestResult.me.name ?? "N/A"} ({smokeTestResult.me.id})
+                      </div>
+                    </div>
+                  )}
+                  {smokeTestResult.adAccounts && smokeTestResult.adAccounts.length > 0 && (
+                    <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                      <div style={{ marginBottom: "0.25rem" }}>
+                        <strong>Ad Accounts:</strong> {smokeTestResult.adAccounts.length} found
+                      </div>
+                      <div style={{ marginLeft: "1rem", marginTop: "0.25rem" }}>
+                        {smokeTestResult.adAccounts.slice(0, 5).map((acc) => (
+                          <div key={acc.id} style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginBottom: "0.125rem" }}>
+                            • {acc.name ?? "Unnamed"} ({acc.id})
+                            {acc.account_status !== undefined && (
+                              <span style={{ marginLeft: "0.5rem", color: acc.account_status === 1 ? "#059669" : "#dc2626" }}>
+                                {acc.account_status === 1 ? "Active" : `Status: ${acc.account_status}`}
+                              </span>
+                            )}
+                            {acc.currency && <span style={{ marginLeft: "0.5rem" }}>{acc.currency}</span>}
+                          </div>
+                        ))}
+                        {smokeTestResult.adAccounts.length > 5 && (
+                          <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)", fontStyle: "italic", marginTop: "0.25rem" }}>
+                            ... and {smokeTestResult.adAccounts.length - 5} more
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {smokeTestResult.hint && (
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: "#854d0e", fontStyle: "italic" }}>{smokeTestResult.hint}</div>
+                  )}
+                </div>
               )}
             </div>
           )}

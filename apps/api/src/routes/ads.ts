@@ -115,8 +115,13 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         link: "/templates",
       },
       meta: {
-        ok: metaConnection?.status === "connected",
-        hint: metaConnection?.status === "connected" ? null : "Connect your Meta account",
+        ok: metaConnection?.status === "connected" && !!metaConnection?.selectedAdAccountId,
+        hint:
+          metaConnection?.status !== "connected"
+            ? "Connect your Meta account"
+            : !metaConnection?.selectedAdAccountId
+              ? "Select an ad account in Settings → Meta"
+              : null,
         link: "/settings#meta",
       },
     };
@@ -134,9 +139,18 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       effective,
     };
 
+    // Meta write mode indicator (no secrets)
+    const allowRealWrite = process.env["ALLOW_REAL_META_WRITE"] === "true";
+    const allowDevSim = process.env["ALLOW_DEV_ADS_PUBLISH_SIM"] === "true";
+    const metaWriteMode = allowRealWrite ? "real" : allowDevSim ? "sim" : "disabled";
+
     // Return rich status object
     return reply.send({
       prerequisites,
+      derived: {
+        budget: derivedBudget,
+        metaWriteMode,
+      },
       settings: settings
         ? {
             id: settings.id,
@@ -161,8 +175,11 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
             catalogId: objects.catalogId,
             campaignId: objects.campaignId,
             adsetId: objects.adsetId,
+            creativeId: objects.creativeId,
             adId: objects.adId,
             status: objects.status,
+            lastPublishStep: objects.lastPublishStep,
+            lastPublishError: objects.lastPublishError,
             lastSyncedAt: objects.lastSyncedAt?.toISOString() ?? null,
             createdAt: objects.createdAt.toISOString(),
             updatedAt: objects.updatedAt.toISOString(),
@@ -177,7 +194,6 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         errorMessage: run.errorMessage,
         createdAt: run.createdAt.toISOString(),
       })),
-      derivedBudget,
     });
   });
 
@@ -435,8 +451,11 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       catalogId: objects.catalogId,
       campaignId: objects.campaignId,
       adsetId: objects.adsetId,
+      creativeId: objects.creativeId,
       adId: objects.adId,
       status: objects.status,
+      lastPublishStep: objects.lastPublishStep,
+      lastPublishError: objects.lastPublishError,
       lastSyncedAt: objects.lastSyncedAt?.toISOString() ?? null,
       createdAt: objects.createdAt.toISOString(),
       updatedAt: objects.updatedAt.toISOString(),

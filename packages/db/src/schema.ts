@@ -408,6 +408,7 @@ export const metaConnections = pgTable(
     tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
     scopes: text("scopes").array(),
     adAccountId: text("ad_account_id"),
+    selectedAdAccountId: text("selected_ad_account_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -460,7 +461,10 @@ export const metaAdObjects = pgTable(
     campaignId: text("campaign_id"),
     adsetId: text("adset_id"),
     adId: text("ad_id"),
+    creativeId: text("creative_id"),
     status: text("status").notNull().default("draft"), // 'draft' | 'active' | 'paused' | 'error'
+    lastPublishStep: text("last_publish_step"), // 'campaign' | 'adset' | 'creative' | 'ad'
+    lastPublishError: text("last_publish_error"),
     lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

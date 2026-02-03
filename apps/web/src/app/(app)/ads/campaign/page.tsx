@@ -49,8 +49,10 @@ function CampaignContent() {
     );
   }
 
-  const { objects, lastRuns } = status;
+  const { objects, lastRuns, derived } = status;
   const campaignId = objects?.campaignId;
+  const metaWriteMode = derived?.metaWriteMode ?? "disabled";
+  const isPaused = objects?.status === "paused";
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -58,6 +60,28 @@ function CampaignContent() {
         <h1 className="text-3xl font-bold mb-2">Campaign Status</h1>
         <p className="text-gray-600">Monitor your Meta ads campaign</p>
       </div>
+
+      {/* Write mode banner */}
+      {metaWriteMode === "disabled" && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-yellow-800">
+            <strong>Ads publish is disabled.</strong> Enable <code className="bg-yellow-100 px-1 rounded">ALLOW_REAL_META_WRITE=true</code> or{" "}
+            <code className="bg-yellow-100 px-1 rounded">ALLOW_DEV_ADS_PUBLISH_SIM=true</code> in your environment to enable campaign creation.
+          </p>
+        </div>
+      )}
+
+      {/* PAUSED campaign notice */}
+      {campaignId && isPaused && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <p className="text-sm text-blue-800">
+            <strong>Test campaign created (PAUSED)</strong> — Campaign and ad set are created but paused to prevent spend.{" "}
+            <a href="https://business.facebook.com/adsmanager/manage/campaigns" target="_blank" rel="noopener noreferrer" className="underline">
+              View in Meta Ads Manager
+            </a>
+          </p>
+        </div>
+      )}
 
       {/* Meta Object IDs */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -90,13 +114,13 @@ function CampaignContent() {
                     <Copy size={16} />
                   </button>
                   <a
-                    href={`https://business.facebook.com/adsmanager/manage/campaigns?act=${objects.campaignId}`}
+                    href="https://business.facebook.com/adsmanager/manage/campaigns"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline flex items-center gap-1"
                   >
                     <ExternalLink size={16} />
-                    View in Meta
+                    View in Meta Ads Manager
                   </a>
                 </>
               )}
@@ -109,6 +133,20 @@ function CampaignContent() {
               {objects?.adsetId && (
                 <button
                   onClick={() => copyToClipboard(objects.adsetId!)}
+                  className="p-1 hover:bg-gray-100 rounded"
+                >
+                  <Copy size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-600">Creative ID:</span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono">{objects?.creativeId ?? "Not created"}</span>
+              {objects?.creativeId && (
+                <button
+                  onClick={() => copyToClipboard(objects.creativeId!)}
                   className="p-1 hover:bg-gray-100 rounded"
                 >
                   <Copy size={16} />
@@ -189,8 +227,11 @@ interface AdsStatus {
     catalogId: string | null;
     campaignId: string | null;
     adsetId: string | null;
+    creativeId: string | null;
     adId: string | null;
     status: string;
+    lastPublishStep?: string | null;
+    lastPublishError?: string | null;
   } | null;
   lastRuns: Array<{
     id: string;
@@ -198,6 +239,9 @@ interface AdsStatus {
     finishedAt: string | null;
     errorMessage: string | null;
   }>;
+  derived?: {
+    metaWriteMode?: "real" | "sim" | "disabled";
+  };
 }
 
 export default function CampaignPage() {

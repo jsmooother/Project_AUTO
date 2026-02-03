@@ -79,7 +79,16 @@ interface AdsStatus {
     errorMessage: string | null;
     createdAt: string;
   }>;
-  derivedBudget: {
+  derived?: {
+    budget: {
+      defaultMonthly: number | null;
+      currency: string;
+      effective: number | null;
+    };
+    metaWriteMode?: "real" | "sim" | "disabled";
+  };
+  /** @deprecated Use derived.budget */
+  derivedBudget?: {
     defaultMonthly: number | null;
     currency: string;
     effective: number | null;
@@ -252,7 +261,8 @@ function AdsContent() {
     );
   }
 
-  const { prerequisites, settings, objects, lastRuns, derivedBudget } = status;
+  const { prerequisites, settings, objects, lastRuns, derived } = status;
+  const derivedBudget = derived?.budget ?? status.derivedBudget ?? { defaultMonthly: null, currency: "USD", effective: null };
   const isReady = prerequisites.website.ok && prerequisites.inventory.ok && prerequisites.templates.ok && prerequisites.meta.ok;
   const adsLaunched = objects?.status === "active" || settings?.status === "active";
   const configDone = settings && (settings.geoMode === "radius" ? settings.geoCenterText : settings.geoRegionsJson?.length) && settings.formatsJson.length > 0;

@@ -4,6 +4,7 @@ import { eq, and, gt } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { metaConnections, sessions } from "@repo/db/schema";
 import { signOAuthState, verifyOAuthState } from "../lib/metaOAuth.js";
+import { fetchMeta, type MetaGraphError } from "../lib/metaGraph.js";
 
 function getWebUrl(): string {
   return process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
@@ -32,6 +33,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
         metaUserId: null,
         adAccountId: null,
         scopes: null,
+        selectedAdAccountId: null,
       });
     }
 
@@ -41,6 +43,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       adAccountId: connection.adAccountId ?? null,
       scopes: connection.scopes ?? null,
       tokenExpiresAt: connection.tokenExpiresAt?.toISOString() ?? null,
+      selectedAdAccountId: connection.selectedAdAccountId ?? null,
     });
   });
 
@@ -378,6 +381,346 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       metaUserId: created.metaUserId,
       adAccountId: created.adAccountId,
       scopes: created.scopes,
+    });
+  });
+
+  // GET /meta/debug/smoke - smoke test Meta connection (read-only)
+  app.get("/meta/debug/smoke", async (request, reply) => {
+    const customerId = request.customer.customerId;
+
+    // Load meta_connections row
+    const [connection] = await db
+      .select()
+      .from(metaConnections)
+      .where(eq(metaConnections.customerId, customerId))
+      .limit(1);
+
+    if (!connection) {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: "No Meta connection found",
+        hint: "Connect your Meta account in Settings first.",
+      });
+    }
+
+    // Validate status and access token
+    if (connection.status !== "connected") {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: `Meta connection status is "${connection.status}", expected "connected"`,
+        hint: "Reconnect Meta in Settings.",
+      });
+    }
+
+    if (!connection.accessToken) {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: "Meta access token is missing",
+        hint: "Reconnect Meta in Settings to refresh your token.",
+      });
+    }
+
+    const accessToken = connection.accessToken;
+
+    // Skip smoke test for dev tokens
+    if (accessToken === "dev-token-placeholder") {
+      return reply.send({
+        ok: true,
+        me: { id: connection.metaUserId ?? "dev-user", name: "Dev User" },
+        adAccounts: connection.adAccountId
+          ? [{ id: connection.adAccountId, name: "Dev Account", account_status: 1, currency: "USD" }]
+          : [],
+        hint: "Dev mode: using placeholder data. Use real OAuth for actual API testing.",
+      });
+    }
+
+    try {
+      // Call Meta Graph API: GET /me?fields=id,name
+      const meData = (await fetchMeta("/me", accessToken, {
+        fields: "id,name",
+        timeout: 10000,
+      })) as { id?: string; name?: string; error?: unknown };
+
+      if (!meData.id) {
+        return reply.status(500).send({
+          error: "CONFIG_ERROR",
+          message: "Meta API returned invalid user data",
+          hint: "Reconnect Meta in Settings.",
+        });
+      }
+
+      // Call Meta Graph API: GET /me/adaccounts?fields=id,name,account_status,currency
+      let adAccounts: Array<{ id: string; name?: string; account_status?: number; currency?: string }> = [];
+      try {
+        const adAccountsData = (await fetchMeta("/me/adaccounts", accessToken, {
+          fields: "id,name,account_status,currency",
+          timeout: 10000,
+        })) as {
+          data?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
+          error?: unknown;
+        };
+
+        if (adAccountsData.data && Array.isArray(adAccountsData.data)) {
+          adAccounts = adAccountsData.data;
+        }
+      } catch (adAccountsErr) {
+        // If ad accounts fetch fails, still return me data but note the issue
+        request.log.warn({ err: adAccountsErr }, "Failed to fetch ad accounts in smoke test");
+        return reply.send({
+          ok: true,
+          me: { id: meData.id, name: meData.name ?? null },
+          adAccounts: [],
+          hint: "User data retrieved, but ad accounts fetch failed. Check permissions.",
+        });
+      }
+
+      return reply.send({
+        ok: true,
+        me: { id: meData.id, name: meData.name ?? null },
+        adAccounts,
+      });
+    } catch (err) {
+      // Handle MetaGraphError
+      if (err && typeof err === "object" && "message" in err && "hint" in err) {
+        const metaErr = err as MetaGraphError;
+        request.log.warn({ err: metaErr }, "Meta smoke test failed");
+        return reply.status(400).send({
+          error: "CONFIG_ERROR",
+          message: metaErr.message,
+          hint: metaErr.hint,
+        });
+      }
+
+      // Handle unexpected errors
+      request.log.error({ err }, "Unexpected error in Meta smoke test");
+      return reply.status(500).send({
+        error: "CONFIG_ERROR",
+        message: "Failed to call Meta API",
+        hint: "Check your Meta access token and network connection. Reconnect Meta in Settings if the issue persists.",
+      });
+    }
+  });
+
+  // GET /meta/ad-accounts - list available ad accounts from Meta
+  app.get("/meta/ad-accounts", async (request, reply) => {
+    const customerId = request.customer.customerId;
+
+    // Load meta_connections row
+    const [connection] = await db
+      .select()
+      .from(metaConnections)
+      .where(eq(metaConnections.customerId, customerId))
+      .limit(1);
+
+    if (!connection) {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: "No Meta connection found",
+        hint: "Connect your Meta account in Settings first.",
+      });
+    }
+
+    if (connection.status !== "connected") {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: `Meta connection status is "${connection.status}", expected "connected"`,
+        hint: "Reconnect Meta in Settings.",
+      });
+    }
+
+    if (!connection.accessToken) {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: "Meta access token is missing",
+        hint: "Reconnect Meta in Settings to refresh your token.",
+      });
+    }
+
+    const accessToken = connection.accessToken;
+
+    // Return placeholder for dev tokens
+    if (accessToken === "dev-token-placeholder") {
+      return reply.send({
+        data: connection.adAccountId
+          ? [
+              {
+                id: connection.adAccountId,
+                name: "Dev Ad Account",
+                account_status: 1,
+                currency: "USD",
+              },
+            ]
+          : [],
+      });
+    }
+
+    try {
+      // Call Meta Graph API: GET /me/adaccounts?fields=id,name,account_status,currency
+      const adAccountsData = (await fetchMeta("/me/adaccounts", accessToken, {
+        fields: "id,name,account_status,currency",
+        timeout: 10000,
+      })) as {
+        data?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
+        error?: unknown;
+      };
+
+      if (adAccountsData.error) {
+        const metaErr = adAccountsData.error as { message?: string };
+        return reply.status(400).send({
+          error: "CONFIG_ERROR",
+          message: metaErr.message ?? "Failed to fetch ad accounts from Meta",
+          hint: "Check your Meta access token and permissions. Reconnect Meta in Settings if the issue persists.",
+        });
+      }
+
+      const accounts = adAccountsData.data ?? [];
+
+      return reply.send({
+        data: accounts,
+      });
+    } catch (err) {
+      // Handle MetaGraphError
+      if (err && typeof err === "object" && "message" in err && "hint" in err) {
+        const metaErr = err as MetaGraphError;
+        request.log.warn({ err: metaErr }, "Failed to fetch ad accounts");
+        return reply.status(400).send({
+          error: "CONFIG_ERROR",
+          message: metaErr.message,
+          hint: metaErr.hint,
+        });
+      }
+
+      // Handle unexpected errors
+      request.log.error({ err }, "Unexpected error fetching ad accounts");
+      return reply.status(500).send({
+        error: "CONFIG_ERROR",
+        message: "Failed to call Meta API",
+        hint: "Check your Meta access token and network connection. Reconnect Meta in Settings if the issue persists.",
+      });
+    }
+  });
+
+  // POST /meta/ad-accounts/select - select an ad account
+  app.post("/meta/ad-accounts/select", async (request, reply) => {
+    const customerId = request.customer.customerId;
+    const body = request.body as { adAccountId?: string };
+
+    if (!body.adAccountId || typeof body.adAccountId !== "string") {
+      return reply.status(400).send({
+        error: "VALIDATION_ERROR",
+        message: "adAccountId is required",
+        issues: [{ path: ["adAccountId"], message: "adAccountId must be a non-empty string" }],
+      });
+    }
+
+    const adAccountId = body.adAccountId.trim();
+    if (!adAccountId) {
+      return reply.status(400).send({
+        error: "VALIDATION_ERROR",
+        message: "adAccountId cannot be empty",
+        issues: [{ path: ["adAccountId"], message: "adAccountId cannot be empty" }],
+      });
+    }
+
+    // Load meta_connections row
+    const [connection] = await db
+      .select()
+      .from(metaConnections)
+      .where(eq(metaConnections.customerId, customerId))
+      .limit(1);
+
+    if (!connection) {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: "No Meta connection found",
+        hint: "Connect your Meta account in Settings first.",
+      });
+    }
+
+    if (connection.status !== "connected") {
+      return reply.status(400).send({
+        error: "MISSING_PREREQUISITE",
+        message: `Meta connection status is "${connection.status}", expected "connected"`,
+        hint: "Reconnect Meta in Settings.",
+      });
+    }
+
+    // Validate that the ad account exists in Meta (unless dev mode)
+    if (connection.accessToken && connection.accessToken !== "dev-token-placeholder") {
+      try {
+        const adAccountsData = (await fetchMeta("/me/adaccounts", connection.accessToken, {
+          fields: "id,name,account_status,currency",
+          timeout: 10000,
+        })) as {
+          data?: Array<{ id: string }>;
+          error?: unknown;
+        };
+
+        if (adAccountsData.error) {
+          const metaErr = adAccountsData.error as { message?: string };
+          return reply.status(400).send({
+            error: "CONFIG_ERROR",
+            message: metaErr.message ?? "Failed to validate ad account",
+            hint: "Check your Meta access token. Reconnect Meta in Settings if the issue persists.",
+          });
+        }
+
+        const accounts = adAccountsData.data ?? [];
+        const accountExists = accounts.some((acc) => acc.id === adAccountId);
+
+        if (!accountExists) {
+          return reply.status(400).send({
+            error: "VALIDATION_ERROR",
+            message: `Ad account "${adAccountId}" not found in your Meta account`,
+            hint: "Select an ad account from the list of available accounts.",
+          });
+        }
+      } catch (err) {
+        // Handle MetaGraphError
+        if (err && typeof err === "object" && "message" in err && "hint" in err) {
+          const metaErr = err as MetaGraphError;
+          request.log.warn({ err: metaErr }, "Failed to validate ad account");
+          return reply.status(400).send({
+            error: "CONFIG_ERROR",
+            message: metaErr.message,
+            hint: metaErr.hint,
+          });
+        }
+
+        request.log.error({ err }, "Unexpected error validating ad account");
+        return reply.status(500).send({
+          error: "CONFIG_ERROR",
+          message: "Failed to validate ad account with Meta API",
+          hint: "Check your Meta access token and network connection. Reconnect Meta in Settings if the issue persists.",
+        });
+      }
+    }
+
+    // Update selected_ad_account_id
+    const [updated] = await db
+      .update(metaConnections)
+      .set({
+        selectedAdAccountId: adAccountId,
+        updatedAt: new Date(),
+      })
+      .where(eq(metaConnections.customerId, customerId))
+      .returning();
+
+    if (!updated) {
+      return reply.status(500).send({
+        error: "INTERNAL",
+        message: "Failed to update selected ad account",
+      });
+    }
+
+    // Return updated status shape
+    return reply.send({
+      status: updated.status,
+      metaUserId: updated.metaUserId ?? null,
+      adAccountId: updated.adAccountId ?? null,
+      scopes: updated.scopes ?? null,
+      tokenExpiresAt: updated.tokenExpiresAt?.toISOString() ?? null,
+      selectedAdAccountId: updated.selectedAdAccountId ?? null,
     });
   });
 }
