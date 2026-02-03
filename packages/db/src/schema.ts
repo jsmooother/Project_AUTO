@@ -413,3 +413,57 @@ export const metaConnections = pgTable(
   },
   (t) => [unique().on(t.customerId)]
 );
+
+export const adSettings = pgTable(
+  "ad_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    geoMode: text("geo_mode").notNull().default("radius"), // 'radius' | 'regions'
+    geoCenterText: text("geo_center_text"),
+    geoRadiusKm: integer("geo_radius_km"),
+    geoRegionsJson: jsonb("geo_regions_json"),
+    formatsJson: jsonb("formats_json").notNull().default([]),
+    ctaType: text("cta_type").notNull().default("learn_more"),
+    budgetOverride: numeric("budget_override", { precision: 20, scale: 4 }),
+    status: text("status").notNull().default("draft"), // 'draft' | 'ready' | 'active' | 'error'
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    lastPublishedAt: timestamp("last_published_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
+
+export const adRuns = pgTable("ad_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  trigger: text("trigger").notNull().default("manual"), // 'manual' | 'scheduled'
+  status: text("status").notNull().default("queued"), // 'queued' | 'running' | 'success' | 'failed'
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const metaAdObjects = pgTable(
+  "meta_ad_objects",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    catalogId: text("catalog_id"),
+    campaignId: text("campaign_id"),
+    adsetId: text("adset_id"),
+    adId: text("ad_id"),
+    status: text("status").notNull().default("draft"), // 'draft' | 'active' | 'paused' | 'error'
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);

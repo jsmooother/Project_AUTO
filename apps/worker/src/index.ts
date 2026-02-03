@@ -6,6 +6,8 @@ import { processSourceProbe } from "./jobs/sourceProbe.js";
 import { processScrapeProd } from "./jobs/scrapeProd.js";
 import { processCrawlStub } from "./jobs/crawlStub.js";
 import { processPreviewGen } from "./jobs/previewGen.js";
+import { processAdsSync } from "./jobs/adsSync.js";
+import { processAdsPublish } from "./jobs/adsPublish.js";
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {
@@ -44,6 +46,12 @@ workers.push(
 );
 workers.push(
   queue.createWorker(JOB_TYPES.PREVIEW, processPreviewGen)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.ADS_SYNC, processAdsSync)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.ADS_PUBLISH, processAdsPublish)
 );
 
 console.log(`[Worker] All workers started (${workers.length} total)`);

@@ -13,6 +13,7 @@ import { RunDetail } from "@/app/pages/RunDetail";
 import { Billing } from "@/app/pages/Billing";
 import { Settings } from "@/app/pages/Settings";
 import { Templates } from "@/app/pages/Templates";
+import { Ads } from "@/app/pages/Ads";
 import { AppLayout } from "@/app/components/AppLayout";
 
 // Admin pages
@@ -25,6 +26,7 @@ import { AdminRuns } from "@/app/pages/admin/AdminRuns";
 import { AdminRunDetail } from "@/app/pages/admin/AdminRunDetail";
 import { AdminBilling } from "@/app/pages/admin/AdminBilling";
 import { AdminSystem } from "@/app/pages/admin/AdminSystem";
+import { AdminAds } from "@/app/pages/admin/AdminAds";
 
 export const router = createBrowserRouter([
   {
@@ -87,6 +89,10 @@ export const router = createBrowserRouter([
         path: "templates",
         Component: Templates,
       },
+      {
+        path: "ads",
+        Component: Ads,
+      },
     ],
   },
   {
@@ -116,6 +122,10 @@ export const router = createBrowserRouter([
       {
         path: "runs/:id",
         Component: AdminRunDetail,
+      },
+      {
+        path: "ads",
+        Component: AdminAds,
       },
       {
         path: "billing",

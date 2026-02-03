@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/app/components/ui/table";
-import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Users, Play, DollarSign } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, TrendingUp, Users, Play, DollarSign, Megaphone } from "lucide-react";
 
 export function AdminOverview() {
   return (
@@ -109,13 +109,13 @@ export function AdminOverview() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
-              <Play className="h-4 w-4" />
-              Active Automations
+              <Megaphone className="h-4 w-4" />
+              Active Ad Campaigns
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold mb-1">189</div>
-            <div className="text-xs text-gray-600">76% of customers</div>
+            <div className="text-3xl font-semibold mb-1">132</div>
+            <div className="text-xs text-gray-600">53% of customers</div>
           </CardContent>
         </Card>
 
@@ -135,12 +135,12 @@ export function AdminOverview() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              Billing Issues
+              Total Ad Spend (MTD)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-semibold mb-1">7</div>
-            <div className="text-xs text-gray-600">Payment failures</div>
+            <div className="text-3xl font-semibold mb-1">2.4M SEK</div>
+            <div className="text-xs text-green-600">+18% vs last month</div>
           </CardContent>
         </Card>
       </div>

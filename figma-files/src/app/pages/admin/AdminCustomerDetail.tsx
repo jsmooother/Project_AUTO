@@ -185,6 +185,53 @@ export function AdminCustomerDetail() {
         </Card>
       </div>
 
+      {/* Ad Campaign Status */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-base">Meta Ad Campaign</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-4 gap-6">
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Campaign Status</div>
+              <Badge className="bg-green-600">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Active
+              </Badge>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Catalog Items</div>
+              <div className="font-medium">247 items synced</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Ad Formats</div>
+              <div className="flex gap-1">
+                <Badge variant="outline" className="text-xs">Feed</Badge>
+                <Badge variant="outline" className="text-xs">Reels</Badge>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-600 mb-1">Template</div>
+              <Badge variant="outline">Modern</Badge>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-6 text-sm">
+            <div>
+              <div className="text-gray-600 mb-1">Geo Targeting</div>
+              <div className="font-medium">Stockholm, 30 km</div>
+            </div>
+            <div>
+              <div className="text-gray-600 mb-1">Campaign ID</div>
+              <div className="font-mono text-xs">camp_9384756384</div>
+            </div>
+            <div>
+              <div className="text-gray-600 mb-1">Last Sync</div>
+              <div className="font-medium">2 hours ago</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Inventory Stats */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <Card>

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { LayoutDashboard, Users, Globe, Play, DollarSign, Settings, Shield } from "lucide-react";
+import { LayoutDashboard, Users, Globe, Play, DollarSign, Settings, Shield, Megaphone } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 
@@ -77,6 +77,16 @@ export function AdminLayout() {
               >
                 <Play className="h-4 w-4" />
                 Runs & Automations
+              </Button>
+            </Link>
+            <Link to="/admin/ads">
+              <Button
+                variant={isActive("/admin/ads") ? "secondary" : "ghost"}
+                className="w-full justify-start gap-2"
+                size="sm"
+              >
+                <Megaphone className="h-4 w-4" />
+                Ads & Campaigns
               </Button>
             </Link>
             <Link to="/admin/billing">

@@ -116,6 +116,14 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
       )
       .orderBy(desc(inventoryItems.lastSeenAt));
 
-    return reply.send({ data: items, source: { id: source.id, websiteUrl: source.websiteUrl } });
+    return reply.send({
+      data: items,
+      source: {
+        id: source.id,
+        websiteUrl: source.websiteUrl,
+        createdAt: source.createdAt?.toISOString() ?? null,
+        lastCrawledAt: source.lastCrawledAt?.toISOString() ?? null,
+      },
+    });
   });
 }

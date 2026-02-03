@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { LayoutDashboard, Package, Play, DollarSign, LayoutTemplate, Settings as SettingsIcon, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Package, Play, DollarSign, LayoutTemplate, Settings as SettingsIcon, ChevronDown, Megaphone } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 const NAV_LINKS = [
@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/inventory", label: "Inventory", icon: Package },
   { href: "/runs", label: "Automation", icon: Play },
   { href: "/templates", label: "Templates", icon: LayoutTemplate },
+  { href: "/ads", label: "Ads", icon: Megaphone },
   { href: "/billing", label: "Billing", icon: DollarSign },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
 ];

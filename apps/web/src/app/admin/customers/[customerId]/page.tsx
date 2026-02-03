@@ -16,6 +16,30 @@ interface CustomerDetail {
     previewRuns: number;
     templateStatus: string | null;
   };
+  ads?: {
+    settings: {
+      geoMode: string;
+      geoCenterText: string | null;
+      geoRadiusKm: number | null;
+      geoRegionsJson: string[] | null;
+      formatsJson: string[];
+      status: string;
+      lastSyncedAt: string | null;
+    } | null;
+    objects: {
+      campaignId: string | null;
+      status: string;
+      lastSyncedAt: string | null;
+    } | null;
+    connection: {
+      status: string;
+      adAccountId: string | null;
+    } | null;
+    onboarding: {
+      monthlyBudgetAmount: string | null;
+      budgetCurrency: string | null;
+    } | null;
+  };
 }
 
 export default function AdminCustomerDetailPage() {
@@ -131,6 +155,139 @@ export default function AdminCustomerDetailPage() {
           <a href={data.inventorySource.websiteUrl} target="_blank" rel="noopener noreferrer">
             {data.inventorySource.websiteUrl}
           </a>
+        </div>
+      )}
+
+      {tab === "overview" && data.ads && (data.ads.settings || data.ads.objects) && (
+        <div style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid #eee", borderRadius: "8px" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "1rem" }}>Meta Ad Campaign</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem" }}>
+            <div>
+              <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Campaign Status</div>
+              <div>
+                {data.ads.objects?.status === "active" || data.ads.settings?.status === "active" ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      background: "#10b981",
+                      color: "white",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Active
+                  </span>
+                ) : data.ads.objects?.status === "paused" ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      background: "#f59e0b",
+                      color: "white",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Paused
+                  </span>
+                ) : data.ads.objects?.status === "error" || data.ads.settings?.status === "error" ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      background: "#dc2626",
+                      color: "white",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Failed
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.25rem",
+                      padding: "0.25rem 0.5rem",
+                      border: "1px solid #ccc",
+                      borderRadius: 4,
+                      fontSize: "0.75rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Draft
+                  </span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Catalog Items</div>
+              <div style={{ fontSize: "1rem", fontWeight: 600 }}>{data.stats.inventoryItems} items</div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Ad Formats</div>
+              <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
+                {data.ads.settings?.formatsJson && Array.isArray(data.ads.settings.formatsJson) && data.ads.settings.formatsJson.length > 0 ? (
+                  data.ads.settings.formatsJson.map((format) => (
+                    <span
+                      key={format}
+                      style={{
+                        padding: "0.125rem 0.5rem",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 4,
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      {format}
+                    </span>
+                  ))
+                ) : (
+                  <span style={{ fontSize: "0.875rem", color: "#666" }}>Not set</span>
+                )}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Template</div>
+              <div style={{ fontSize: "0.875rem", fontWeight: 500 }}>{data.stats.templateStatus ?? "Not set"}</div>
+            </div>
+            {data.ads.settings && (
+              <div>
+                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Geo Targeting</div>
+                <div style={{ fontSize: "0.875rem" }}>
+                  {data.ads.settings.geoMode === "radius" && data.ads.settings.geoCenterText
+                    ? `${data.ads.settings.geoCenterText}, ${data.ads.settings.geoRadiusKm ?? 0} km`
+                    : data.ads.settings.geoMode === "regions" && data.ads.settings.geoRegionsJson
+                      ? Array.isArray(data.ads.settings.geoRegionsJson)
+                        ? data.ads.settings.geoRegionsJson.join(", ")
+                        : "Not set"
+                      : "Not set"}
+                </div>
+              </div>
+            )}
+            {data.ads.objects?.campaignId && (
+              <div>
+                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Campaign ID</div>
+                <div style={{ fontSize: "0.75rem", fontFamily: "monospace" }}>{data.ads.objects.campaignId}</div>
+              </div>
+            )}
+            {data.ads.settings?.lastSyncedAt && (
+              <div>
+                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.25rem" }}>Last Sync</div>
+                <div style={{ fontSize: "0.875rem" }}>{new Date(data.ads.settings.lastSyncedAt).toLocaleString()}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

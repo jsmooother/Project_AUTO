@@ -11,12 +11,16 @@ import {
   onboardingStates,
   crawlRuns,
   previewRuns,
+  adRuns,
   inventorySources,
   inventoryItems,
   adTemplates,
   adTemplateConfigs,
   adPreviews,
   approvals,
+  adSettings,
+  metaAdObjects,
+  metaConnections,
 } from "@repo/db/schema";
 
 const DEMO_PASSWORD = "demo-password";
@@ -311,6 +315,30 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(adTemplateConfigs.customerId, customerId))
       .limit(1);
 
+    const [adSettings] = await db
+      .select()
+      .from(adSettings)
+      .where(eq(adSettings.customerId, customerId))
+      .limit(1);
+
+    const [metaObjects] = await db
+      .select()
+      .from(metaAdObjects)
+      .where(eq(metaAdObjects.customerId, customerId))
+      .limit(1);
+
+    const [metaConnection] = await db
+      .select()
+      .from(metaConnections)
+      .where(eq(metaConnections.customerId, customerId))
+      .limit(1);
+
+    const [onboarding] = await db
+      .select()
+      .from(onboardingStates)
+      .where(eq(onboardingStates.customerId, customerId))
+      .limit(1);
+
     return reply.send({
       customer,
       inventorySource: source ?? null,
@@ -319,6 +347,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         crawlRuns: crawlCount[0]?.count ?? 0,
         previewRuns: previewCount[0]?.count ?? 0,
         templateStatus: templateConfig?.status ?? null,
+      },
+      ads: {
+        settings: adSettings ?? null,
+        objects: metaObjects ?? null,
+        connection: metaConnection ?? null,
+        onboarding: onboarding ?? null,
       },
     });
   });
@@ -479,6 +513,70 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     }
   );
 
+  // POST /admin/customers/:customerId/ads/sync - trigger ads sync for customer (dev ops)
+  app.post<{ Params: { customerId: string } }>(
+    "/admin/customers/:customerId/ads/sync",
+    async (request, reply) => {
+      const { customerId } = request.params;
+
+      const [run] = await db
+        .insert(adRuns)
+        .values({
+          customerId,
+          trigger: "admin",
+          status: "queued",
+        })
+        .returning({ id: adRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({
+          error: { code: "INTERNAL", message: "Insert failed" },
+        });
+      }
+
+      const runId = String(run.id);
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.ADS_SYNC,
+        payload: {},
+        correlation: { customerId, runId },
+      });
+
+      return reply.status(201).send({ runId, jobId });
+    }
+  );
+
+  // POST /admin/customers/:customerId/ads/publish - trigger ads publish for customer (dev ops)
+  app.post<{ Params: { customerId: string } }>(
+    "/admin/customers/:customerId/ads/publish",
+    async (request, reply) => {
+      const { customerId } = request.params;
+
+      const [run] = await db
+        .insert(adRuns)
+        .values({
+          customerId,
+          trigger: "admin",
+          status: "queued",
+        })
+        .returning({ id: adRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({
+          error: { code: "INTERNAL", message: "Insert failed" },
+        });
+      }
+
+      const runId = String(run.id);
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.ADS_PUBLISH,
+        payload: {},
+        correlation: { customerId, runId },
+      });
+
+      return reply.status(201).send({ runId, jobId });
+    }
+  );
+
   // POST /admin/customers/:customerId/runs/preview - trigger preview generation for customer (dev ops)
   app.post<{ Params: { customerId: string } }>(
     "/admin/customers/:customerId/runs/preview",
@@ -550,6 +648,148 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ ...preview, type: "preview" });
     }
 
+    const [ads] = await db
+      .select()
+      .from(adRuns)
+      .where(eq(adRuns.id, runId))
+      .limit(1);
+
+    if (ads) {
+      return reply.send({ ...ads, type: "ads" });
+    }
+
     return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Run not found" } });
+  });
+
+  // GET /admin/ads - get all campaigns, connections, and spend data
+  app.get("/admin/ads", async (_request, reply) => {
+    // Get all customers with ads data
+    const allCustomers = await db.select().from(customers).orderBy(desc(customers.createdAt));
+
+    // Fetch ads-related data for all customers in parallel
+    const [allSettings, allObjects, allConnections, allItems, allOnboarding] = await Promise.all([
+      db.select().from(adSettings),
+      db.select().from(metaAdObjects),
+      db.select().from(metaConnections),
+      db.select({ customerId: inventoryItems.customerId, count: sql<number>`count(*)::int` })
+        .from(inventoryItems)
+        .groupBy(inventoryItems.customerId),
+      db.select().from(onboardingStates),
+    ]);
+
+    // Build maps for quick lookup
+    const settingsMap = new Map(allSettings.map((s) => [s.customerId, s]));
+    const objectsMap = new Map(allObjects.map((o) => [o.customerId, o]));
+    const connectionsMap = new Map(allConnections.map((c) => [c.customerId, c]));
+    const itemsMap = new Map(allItems.map((i) => [i.customerId, i.count]));
+    const onboardingMap = new Map(allOnboarding.map((o) => [o.customerId, o]));
+
+    // Build campaigns list
+    const campaigns = allCustomers
+      .map((customer) => {
+        const settings = settingsMap.get(customer.id);
+        const objects = objectsMap.get(customer.id);
+        const connection = connectionsMap.get(customer.id);
+        const itemCount = itemsMap.get(customer.id) ?? 0;
+        const onboarding = onboardingMap.get(customer.id);
+
+        // Determine campaign status
+        let status: "active" | "paused" | "failed" | "pending" = "pending";
+        if (objects?.status === "active" || settings?.status === "active") {
+          status = "active";
+        } else if (objects?.status === "paused") {
+          status = "paused";
+        } else if (objects?.status === "error" || settings?.status === "error") {
+          status = "failed";
+        }
+
+        // Calculate budget
+        const budgetMonthly = settings?.budgetOverride
+          ? Number(settings.budgetOverride)
+          : onboarding?.monthlyBudgetAmount
+            ? Number(onboarding.monthlyBudgetAmount)
+            : 0;
+        const currency = onboarding?.budgetCurrency ?? "SEK";
+
+        // For MVP, spend_current is simulated (0 for now, can be enhanced later)
+        const spendCurrent = 0;
+
+        // Format geo targeting
+        let geoTargeting = "Not set";
+        if (settings) {
+          if (settings.geoMode === "radius" && settings.geoCenterText) {
+            geoTargeting = `${settings.geoCenterText}, ${settings.geoRadiusKm ?? 0} km`;
+          } else if (settings.geoMode === "regions" && settings.geoRegionsJson) {
+            const regions = Array.isArray(settings.geoRegionsJson) ? settings.geoRegionsJson : [];
+            geoTargeting = regions.join(", ");
+          }
+        }
+
+        // Format last sync
+        let lastSync = "Never";
+        if (settings?.lastSyncedAt) {
+          const syncDate = new Date(settings.lastSyncedAt);
+          const hoursAgo = Math.floor((Date.now() - syncDate.getTime()) / (1000 * 60 * 60));
+          if (hoursAgo < 1) lastSync = "Just now";
+          else if (hoursAgo < 24) lastSync = `${hoursAgo} hour${hoursAgo > 1 ? "s" : ""} ago`;
+          else lastSync = `${Math.floor(hoursAgo / 24)} day${Math.floor(hoursAgo / 24) > 1 ? "s" : ""} ago`;
+        }
+
+        // Get template name (simplified - would need to join with adTemplateConfigs)
+        const template = "Modern"; // Placeholder
+
+        return {
+          id: customer.id,
+          customer_id: customer.id,
+          customer_name: customer.name,
+          status,
+          budget_monthly: budgetMonthly,
+          spend_current: spendCurrent,
+          currency,
+          catalog_items: itemCount,
+          last_sync: lastSync,
+          campaign_id: objects?.campaignId ?? "-",
+          formats: Array.isArray(settings?.formatsJson) ? settings.formatsJson : [],
+          geo_targeting: geoTargeting,
+          template,
+        };
+      })
+      .filter((c) => c.budget_monthly > 0 || c.status !== "pending"); // Only show customers with ads activity
+
+    // Calculate summary metrics
+    const activeCampaigns = campaigns.filter((c) => c.status === "active").length;
+    const failedCampaigns = campaigns.filter((c) => c.status === "failed").length;
+    const totalBudget = campaigns.reduce((sum, c) => sum + c.budget_monthly, 0);
+    const totalSpend = campaigns.reduce((sum, c) => sum + c.spend_current, 0);
+
+    // Build Meta connections list
+    const metaConnectionsList = allConnections.map((conn) => {
+      const customer = allCustomers.find((c) => c.id === conn.customerId);
+      const daysUntilExpiry = conn.tokenExpiresAt
+        ? Math.floor((new Date(conn.tokenExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        : null;
+
+      return {
+        customer_id: conn.customerId,
+        customer_name: customer?.name ?? "Unknown",
+        business_id: conn.metaUserId ?? "-",
+        ad_account_id: conn.adAccountId ?? "-",
+        connection_status: conn.status === "connected" ? "connected" : "error",
+        token_expires: daysUntilExpiry !== null ? (daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : "Expired") : "Unknown",
+        api_version: "v19.0", // Placeholder
+      };
+    });
+
+    return reply.send({
+      campaigns,
+      metaConnections: metaConnectionsList,
+      summary: {
+        activeCampaigns,
+        failedCampaigns,
+        totalBudget,
+        totalSpend,
+        totalCampaigns: campaigns.length,
+      },
+    });
   });
 }

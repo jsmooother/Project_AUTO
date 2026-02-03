@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
@@ -103,12 +104,15 @@ interface MetaConnectionStatus {
   metaUserId: string | null;
   adAccountId: string | null;
   scopes: string[] | null;
+  tokenExpiresAt?: string | null;
 }
 
-export default function SettingsPage() {
+function SettingsPage() {
   const { auth } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState<{ websiteUrl: string; createdAt?: string } | null>(null);
+  const [source, setSource] = useState<{ websiteUrl: string; createdAt?: string | null; lastCrawledAt?: string | null } | null>(null);
   const [itemsCount, setItemsCount] = useState(0);
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [websiteState, setWebsiteState] = useState<"idle" | "loading" | "success">("idle");
@@ -122,11 +126,12 @@ export default function SettingsPage() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
   const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
+  const metaEnabled = process.env.NEXT_PUBLIC_META_ENABLED === "true";
 
   useEffect(() => {
     if (!customerId) return;
     Promise.all([
-      apiGet<{ data: unknown[]; source?: { websiteUrl: string; createdAt?: string } }>(
+      apiGet<{ data: unknown[]; source?: { websiteUrl: string; createdAt?: string | null; lastCrawledAt?: string | null } }>(
         "/inventory/items",
         { customerId }
       ),
@@ -142,6 +147,23 @@ export default function SettingsPage() {
     });
   }, [customerId]);
 
+  // Handle OAuth callback query params
+  useEffect(() => {
+    const metaParam = searchParams.get("meta");
+    if (metaParam === "connected") {
+      if (customerId) {
+        apiGet<MetaConnectionStatus>("/meta/status", { customerId }).then((res) => {
+          if (res.ok) setMetaConnection(res.data);
+        });
+      }
+      router.replace("/settings");
+    } else if (metaParam === "error") {
+      const errorMsg = searchParams.get("error") || "Meta connection failed";
+      setMetaError(errorMsg);
+      router.replace("/settings");
+    }
+  }, [searchParams, customerId, router]);
+
   const handleTestConnection = () => {
     setWebsiteState("loading");
     setTimeout(() => {
@@ -153,7 +175,6 @@ export default function SettingsPage() {
   const handleSaveAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveLoading(true);
-    // Placeholder - no account update API yet
     setTimeout(() => setSaveLoading(false), 500);
   };
 
@@ -170,13 +191,28 @@ export default function SettingsPage() {
     if (!customerId) return;
     setMetaLoading(true);
     setMetaError(null);
-    const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
-    setMetaLoading(false);
-    if (res.ok) {
-      setMetaConnection(res.data);
+
+    if (metaEnabled) {
+      try {
+        const res = await apiGet<{ url: string }>("/meta/oauth/connect-url", { customerId });
+        if (res.ok && res.data.url) {
+          window.location.href = res.data.url;
+          return;
+        } else if (!res.ok) {
+          setMetaError(res.error ?? "Failed to get OAuth URL");
+        }
+      } catch (err) {
+        setMetaError("Failed to start OAuth flow");
+      }
     } else {
-      setMetaError(res.error);
+      const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
+      if (res.ok) {
+        setMetaConnection(res.data);
+      } else {
+        setMetaError(res.error);
+      }
     }
+    setMetaLoading(false);
   };
 
   const handleMetaDisconnect = async () => {
@@ -205,8 +241,19 @@ export default function SettingsPage() {
   const websiteConnected = !!source;
   const user = auth.user;
 
+  // Format last sync time
+  const formatLastSync = (lastCrawledAt?: string | null) => {
+    if (!lastCrawledAt) return "Never";
+    const date = new Date(lastCrawledAt);
+    const hoursAgo = Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60));
+    if (hoursAgo < 1) return "Just now";
+    if (hoursAgo < 24) return `${hoursAgo} hour${hoursAgo > 1 ? "s" : ""} ago`;
+    return `${Math.floor(hoursAgo / 24)} day${Math.floor(hoursAgo / 24) > 1 ? "s" : ""} ago`;
+  };
+
   return (
-    <div style={{ maxWidth: 896 }}>
+    <div style={{ maxWidth: 896, margin: "0 auto", padding: "2rem 1.5rem" }}>
+      {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
         <h1
           style={{
@@ -219,20 +266,12 @@ export default function SettingsPage() {
         >
           Settings
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
-          Manage your account and connected services
-        </p>
+        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>Manage your account and connected services</p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        {/* Account information */}
-        <CardSection
-          icon={<User size={20} />}
-          iconBg="#f3f4f6"
-          iconColor="var(--pa-gray)"
-          title="Account information"
-          description="Your personal and company details"
-        >
+        {/* Account Information */}
+        <CardSection icon={<User size={20} />} iconBg="#f3f4f6" iconColor="var(--pa-gray)" title="Account information" description="Your personal and company details">
           <form onSubmit={handleSaveAccount} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div>
@@ -291,32 +330,28 @@ export default function SettingsPage() {
                 }}
               />
             </div>
-            <button
-              type="submit"
-              disabled={saveLoading}
-              style={{
-                padding: "0.5rem 1rem",
-                background: "var(--pa-dark)",
-                color: "white",
-                border: "none",
-                borderRadius: 6,
-                fontWeight: 500,
-                cursor: saveLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {saveLoading ? "Saving…" : "Save Changes"}
-            </button>
+            <div style={{ paddingTop: "1rem" }}>
+              <button
+                type="submit"
+                disabled={saveLoading}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "var(--pa-dark)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  fontWeight: 500,
+                  cursor: saveLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {saveLoading ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
           </form>
         </CardSection>
 
-        {/* Connected website */}
-        <CardSection
-          icon={<Globe size={20} />}
-          iconBg="#dbeafe"
-          iconColor="#2563eb"
-          title="Connected website"
-          description="Your inventory source"
-        >
+        {/* Connected Website */}
+        <CardSection icon={<Globe size={20} />} iconBg="#dbeafe" iconColor="#2563eb" title="Connected website" description="Your inventory source">
           {websiteConnected ? (
             <>
               <div
@@ -330,9 +365,9 @@ export default function SettingsPage() {
                   marginBottom: "1rem",
                 }}
               >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 4 }}>
-                    <span style={{ fontWeight: 500 }}>{source?.websiteUrl}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <h4 style={{ fontWeight: 500, fontSize: "0.875rem" }}>{source?.websiteUrl}</h4>
                     <span
                       style={{
                         display: "inline-flex",
@@ -350,42 +385,47 @@ export default function SettingsPage() {
                       Connected
                     </span>
                   </div>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    {source?.createdAt && `Connected on: ${new Date(source.createdAt).toLocaleDateString()}`}
-                    {itemsCount > 0 && ` · Items detected: ${itemsCount}`}
+                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                    {source?.createdAt && <div>Connected on: {new Date(source.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
+                    <div>Last sync: {formatLastSync(source?.lastCrawledAt)}</div>
+                    {itemsCount > 0 && <div>Items detected: {itemsCount}</div>}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleTestConnection}
-                  disabled={websiteState === "loading"}
-                  style={{
-                    padding: "0.375rem 0.75rem",
-                    border: "1px solid var(--pa-border)",
-                    borderRadius: 6,
-                    background: "white",
-                    cursor: websiteState === "loading" ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  {websiteState === "loading" ? (
-                    <>
-                      <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
-                      Testing…
-                    </>
-                  ) : websiteState === "success" ? (
-                    <>
-                      <CheckCircle2 size={14} color="#059669" />
-                      Connected
-                    </>
-                  ) : (
-                    "Test Connection"
-                  )}
-                </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    onClick={handleTestConnection}
+                    disabled={websiteState === "loading"}
+                    style={{
+                      padding: "0.375rem 0.75rem",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 6,
+                      background: "white",
+                      cursor: websiteState === "loading" ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {websiteState === "loading" ? (
+                      <>
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                        Testing...
+                      </>
+                    ) : websiteState === "success" ? (
+                      <>
+                        <CheckCircle2 size={14} color="#059669" />
+                        Connected
+                      </>
+                    ) : (
+                      "Test Connection"
+                    )}
+                  </button>
+                </div>
               </div>
-              <form onSubmit={handleUpdateUrl} style={{ marginBottom: "1rem" }}>
+              <div style={{ marginBottom: "1rem" }}>
                 <label htmlFor="update-url" style={{ display: "block", fontSize: "0.875rem", marginBottom: 4 }}>
                   Update website URL
                 </label>
@@ -404,7 +444,8 @@ export default function SettingsPage() {
                     }}
                   />
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleUpdateUrl}
                     disabled={updateUrlLoading}
                     style={{
                       padding: "0.5rem 1rem",
@@ -412,15 +453,15 @@ export default function SettingsPage() {
                       borderRadius: 6,
                       background: "white",
                       cursor: updateUrlLoading ? "not-allowed" : "pointer",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
                     }}
                   >
                     {updateUrlLoading ? "Updating…" : "Update"}
                   </button>
                 </div>
-                <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginTop: 4 }}>
-                  Changing your URL will trigger a new inventory scan
-                </p>
-              </form>
+                <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginTop: 4 }}>Changing your URL will trigger a new inventory scan</p>
+              </div>
             </>
           ) : (
             <div
@@ -433,9 +474,7 @@ export default function SettingsPage() {
             >
               <Globe size={48} style={{ color: "#9ca3af", marginBottom: "0.75rem" }} />
               <h4 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>No website connected</h4>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
-                Connect your inventory website to start automating ads
-              </p>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>Connect your inventory website to start automating ads</p>
               <Link
                 href="/connect-website"
                 prefetch={false}
@@ -466,14 +505,8 @@ export default function SettingsPage() {
           </div>
         </CardSection>
 
-        {/* Connected Meta account */}
-        <CardSection
-          icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>}
-          iconBg="#dbeafe"
-          iconColor="#2563eb"
-          title="Connected Meta account"
-          description="Your Meta (Facebook/Instagram) advertising platform"
-        >
+        {/* Connected Meta Account */}
+        <CardSection icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>} iconBg="#dbeafe" iconColor="#2563eb" title="Connected Meta account" description="Your Meta (Facebook/Instagram) advertising platform">
           {metaError && (
             <div
               style={{
@@ -502,8 +535,8 @@ export default function SettingsPage() {
               }}
             >
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: 4 }}>
-                  <span style={{ fontWeight: 500 }}>Connected</span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <h4 style={{ fontWeight: 500, fontSize: "0.875rem" }}>Connected</h4>
                   <span
                     style={{
                       display: "inline-flex",
@@ -521,34 +554,47 @@ export default function SettingsPage() {
                     Active
                   </span>
                 </div>
-                {metaConnection.adAccountId && (
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.25rem" }}>
-                    Ad Account: {metaConnection.adAccountId}
-                  </div>
-                )}
-                {metaConnection.metaUserId && (
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    User ID: {metaConnection.metaUserId}
-                  </div>
-                )}
+                <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  {metaConnection.adAccountId && <div>Account ID: {metaConnection.adAccountId}</div>}
+                  {metaConnection.metaUserId && <div>Connected on: {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</div>}
+                  <div>Permissions: Campaign management</div>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={handleMetaDisconnect}
-                disabled={metaLoading}
-                style={{
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.875rem",
-                  border: "1px solid var(--pa-border)",
-                  borderRadius: 6,
-                  background: "white",
-                  cursor: metaLoading ? "not-allowed" : "pointer",
-                  color: "var(--pa-dark)",
-                  fontWeight: 500,
-                }}
-              >
-                {metaLoading ? "Disconnecting..." : "Disconnect"}
-              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={handleMetaConnect}
+                  disabled={metaLoading}
+                  style={{
+                    padding: "0.375rem 0.75rem",
+                    border: "1px solid var(--pa-border)",
+                    borderRadius: 6,
+                    background: "white",
+                    cursor: metaLoading ? "not-allowed" : "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  Reconnect
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMetaDisconnect}
+                  disabled={metaLoading}
+                  style={{
+                    padding: "0.375rem 0.75rem",
+                    fontSize: "0.875rem",
+                    border: "none",
+                    borderRadius: 6,
+                    background: "transparent",
+                    cursor: metaLoading ? "not-allowed" : "pointer",
+                    color: "#dc2626",
+                    fontWeight: 500,
+                  }}
+                >
+                  {metaLoading ? "Disconnecting..." : "Disconnect"}
+                </button>
+              </div>
             </div>
           ) : (
             <div
@@ -575,13 +621,11 @@ export default function SettingsPage() {
                       fontSize: "0.75rem",
                     }}
                   >
-                    {allowDevMeta ? "Dev mode available" : "Coming soon"}
+                    {metaEnabled ? "Connect your Meta account" : allowDevMeta ? "Dev mode available" : "Coming soon"}
                   </span>
                 </div>
                 <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                  {allowDevMeta
-                    ? "Use dev connect to test the integration flow"
-                    : "Meta Ads integration will be available in a future release"}
+                  {metaEnabled ? "Connect your Meta account to enable ad creation" : allowDevMeta ? "Use dev connect to test the integration flow" : "Meta Ads integration will be available in a future release"}
                 </div>
               </div>
               {allowDevMeta && (
@@ -594,13 +638,33 @@ export default function SettingsPage() {
                     fontSize: "0.875rem",
                     border: "1px solid var(--pa-border)",
                     borderRadius: 6,
-                    background: "white",
+                    background: metaLoading ? "#d1d5db" : "#fef3c7",
                     cursor: metaLoading ? "not-allowed" : "pointer",
-                    color: "var(--pa-dark)",
+                    color: "#92400e",
+                    fontWeight: 500,
+                    marginRight: metaEnabled ? "0.5rem" : 0,
+                  }}
+                >
+                  {metaLoading ? "Connecting..." : "🔧 Dev: Fake Connect"}
+                </button>
+              )}
+              {metaEnabled && (
+                <button
+                  type="button"
+                  onClick={handleMetaConnect}
+                  disabled={metaLoading}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    fontSize: "0.875rem",
+                    border: "1px solid var(--pa-border)",
+                    borderRadius: 6,
+                    background: metaLoading ? "#d1d5db" : "var(--pa-blue)",
+                    cursor: metaLoading ? "not-allowed" : "pointer",
+                    color: "white",
                     fontWeight: 500,
                   }}
                 >
-                  {metaLoading ? "Connecting..." : "Dev: Fake connect"}
+                  {metaLoading ? "Connecting..." : "Connect Meta"}
                 </button>
               )}
             </div>
@@ -620,53 +684,47 @@ export default function SettingsPage() {
           </div>
         </CardSection>
 
-        {/* Notification preferences */}
-        <CardSection
-          icon={<Bell size={20} />}
-          iconBg="#ede9fe"
-          iconColor="#7c3aed"
-          title="Notification preferences"
-          description="Choose what updates you want to receive"
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {/* Notification Preferences */}
+        <CardSection icon={<Bell size={20} />} iconBg="#ede9fe" iconColor="#7c3aed" title="Notification preferences" description="Choose what updates you want to receive">
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {[
               {
-                id: "run-complete",
+                id: "notif-run-complete",
                 label: "Run completion notifications",
                 desc: "Get notified when automation runs complete (success or failure)",
                 checked: runComplete,
                 set: setRunComplete,
               },
               {
-                id: "errors",
+                id: "notif-errors",
                 label: "Error alerts",
                 desc: "Immediate alerts when runs fail or connections drop",
                 checked: errorAlerts,
                 set: setErrorAlerts,
               },
               {
-                id: "budget",
+                id: "notif-budget",
                 label: "Budget alerts",
                 desc: "Alerts when you reach 75%, 90%, and 100% of your monthly budget",
                 checked: budgetAlerts,
                 set: setBudgetAlerts,
               },
               {
-                id: "inventory",
+                id: "notif-inventory",
                 label: "Inventory change summary",
                 desc: "Daily digest of new and removed items",
                 checked: inventorySummary,
                 set: setInventorySummary,
               },
               {
-                id: "weekly",
+                id: "notif-weekly",
                 label: "Weekly summary report",
                 desc: "Weekly overview of inventory, runs, and ad performance",
                 checked: weeklyReport,
                 set: setWeeklyReport,
               },
               {
-                id: "product",
+                id: "notif-product",
                 label: "Product updates & tips",
                 desc: "Occasional emails about new features and best practices",
                 checked: productUpdates,
@@ -684,8 +742,8 @@ export default function SettingsPage() {
                   borderRadius: "var(--pa-radius)",
                 }}
               >
-                <div>
-                  <label htmlFor={id} style={{ fontWeight: 500, cursor: "pointer" }}>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor={id} style={{ fontWeight: 500, cursor: "pointer", display: "block", marginBottom: 4 }}>
                     {label}
                   </label>
                   <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginTop: 4 }}>{desc}</p>
@@ -696,7 +754,7 @@ export default function SettingsPage() {
           </div>
         </CardSection>
 
-        {/* Danger zone */}
+        {/* Danger Zone */}
         <div
           style={{
             background: "white",
@@ -721,10 +779,8 @@ export default function SettingsPage() {
                 <AlertTriangle size={20} color="#dc2626" />
               </div>
               <div>
-                <h2 style={{ fontWeight: 600, fontSize: "1rem", color: "#991b1b" }}>Danger zone</h2>
-                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>
-                  Irreversible actions for your account
-                </p>
+                <h2 style={{ fontWeight: 600, fontSize: "1rem", color: "#991b1b", marginBottom: 2 }}>Danger zone</h2>
+                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>Irreversible actions for your account</p>
               </div>
             </div>
           </div>
@@ -740,11 +796,9 @@ export default function SettingsPage() {
                 alignItems: "flex-start",
               }}
             >
-              <div>
+              <div style={{ flex: 1 }}>
                 <h4 style={{ fontWeight: 500, color: "#991b1b", marginBottom: 4 }}>Disconnect website</h4>
-                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>
-                  Remove your website connection. Automation will stop but ad campaigns will remain active.
-                </p>
+                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>Remove your website connection. Automation will stop but ad campaigns will remain active.</p>
               </div>
               <button
                 type="button"
@@ -755,11 +809,16 @@ export default function SettingsPage() {
                   background: "white",
                   color: "#b91c1c",
                   cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
                 }}
               >
                 Disconnect
               </button>
             </div>
+
+            <div style={{ height: 1, background: "#fecaca" }} />
+
             <div
               style={{
                 padding: "1rem",
@@ -771,11 +830,9 @@ export default function SettingsPage() {
                 alignItems: "flex-start",
               }}
             >
-              <div>
+              <div style={{ flex: 1 }}>
                 <h4 style={{ fontWeight: 500, color: "#991b1b", marginBottom: 4 }}>Pause automation</h4>
-                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>
-                  Temporarily stop all automation runs. Your connections and data will remain.
-                </p>
+                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>Temporarily stop all automation runs. Your connections and data will remain.</p>
               </div>
               <button
                 type="button"
@@ -786,11 +843,16 @@ export default function SettingsPage() {
                   background: "white",
                   color: "#b91c1c",
                   cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
                 }}
               >
                 Pause
               </button>
             </div>
+
+            <div style={{ height: 1, background: "#fecaca" }} />
+
             <div
               style={{
                 padding: "1rem",
@@ -802,11 +864,9 @@ export default function SettingsPage() {
                 alignItems: "flex-start",
               }}
             >
-              <div>
+              <div style={{ flex: 1 }}>
                 <h4 style={{ fontWeight: 500, color: "#991b1b", marginBottom: 4 }}>Delete account</h4>
-                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>
-                  Permanently delete your account, all data, disconnect integrations, and stop billing.
-                </p>
+                <p style={{ fontSize: "0.875rem", color: "#b91c1c" }}>Permanently delete your account, all data, disconnect integrations, and stop billing.</p>
               </div>
               <button
                 type="button"
@@ -817,6 +877,8 @@ export default function SettingsPage() {
                   background: "white",
                   color: "#b91c1c",
                   cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: 500,
                 }}
               >
                 Delete Account
@@ -826,5 +888,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPageWrapper() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <SettingsPage />
+    </Suspense>
   );
 }

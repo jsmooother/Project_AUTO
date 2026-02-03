@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,12 +30,9 @@ export default function LoginPage() {
         throw new Error(data.error?.message || "Login failed");
       }
 
-      const data = await res.json();
-      localStorage.setItem("customerId", data.customerId);
-      localStorage.setItem("userId", data.userId);
-      localStorage.setItem("email", data.email);
-
-      window.location.href = "/dashboard";
+      // Session cookie is set by the API, redirect to dashboard
+      // The AuthProvider will pick up the session on the next page load
+      router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
     } finally {

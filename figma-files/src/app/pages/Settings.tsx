@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/app
 import { Badge } from "@/app/components/ui/badge";
 import { Switch } from "@/app/components/ui/switch";
 import { Separator } from "@/app/components/ui/separator";
-import { Globe, User, AlertTriangle, CheckCircle2, Bell, Loader2 } from "lucide-react";
+import { Globe, User, AlertTriangle, CheckCircle2, Bell, Loader2, ExternalLink, Lock } from "lucide-react";
 
 // Meta icon component
 function MetaIcon({ className = "" }: { className?: string }) {
@@ -17,10 +17,29 @@ function MetaIcon({ className = "" }: { className?: string }) {
   );
 }
 
+// TikTok icon component
+function TikTokIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+    </svg>
+  );
+}
+
+// X (Twitter) icon component
+function XIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+    </svg>
+  );
+}
+
 export function Settings() {
   const [websiteUrl, setWebsiteUrl] = useState("yoursite.com/inventory");
   const [websiteState, setWebsiteState] = useState<"idle" | "loading" | "success">("idle");
   const websiteConnected = true; // In production, this comes from your data
+  const metaConnected = true; // Set to false to show disconnected state
 
   const handleTestConnection = () => {
     setWebsiteState("loading");
@@ -28,6 +47,17 @@ export function Settings() {
       setWebsiteState("success");
       setTimeout(() => setWebsiteState("idle"), 3000);
     }, 1500);
+  };
+
+  const handleMetaConnect = () => {
+    // In production: Redirect to Meta OAuth flow
+    // window.location.href = '/api/auth/meta/connect';
+    console.log("Redirecting to Meta OAuth...");
+  };
+
+  const handleMetaDisconnect = () => {
+    // In production: Call API to disconnect
+    console.log("Disconnecting Meta account...");
   };
 
   return (
@@ -182,42 +212,162 @@ export function Settings() {
                 <MetaIcon className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <CardTitle>Connected Meta account</CardTitle>
-                <CardDescription>Your Meta (Facebook/Instagram) advertising platform</CardDescription>
+                <CardTitle>Meta Ads</CardTitle>
+                <CardDescription>Connect to Facebook & Instagram advertising</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-start justify-between p-4 border rounded-lg">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h4 className="font-medium">Acme Inc. Ads</h4>
-                  <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Active
-                  </Badge>
+            {metaConnected ? (
+              <>
+                <div className="flex items-start justify-between p-4 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-medium">Acme Inc. Ads</h4>
+                      <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Active
+                      </Badge>
+                    </div>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>Business ID: biz_7362847562</div>
+                      <div>Ad Account: act_9283746529</div>
+                      <div>Connected on: Jan 28, 2026</div>
+                      <div>Permissions: Campaign management, catalog sync</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button variant="outline" size="sm" onClick={handleMetaConnect}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Reconnect
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={handleMetaDisconnect}
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600 space-y-1">
-                  <div>Account ID: 123456789</div>
-                  <div>Connected on: Jan 28, 2026</div>
-                  <div>Permissions: Campaign management</div>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <strong>OAuth Connected:</strong> We can publish ads to your Meta account
+                      automatically. Token refreshes every 60 days.
+                    </div>
+                  </div>
                 </div>
+              </>
+            ) : (
+              <>
+                <div className="p-6 border-2 border-dashed rounded-lg">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <MetaIcon className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium mb-2">Connect your Meta account</h4>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Connect your Facebook Business account to publish automated ads to Facebook
+                        and Instagram. You'll grant permissions for:
+                      </p>
+                      <ul className="text-sm text-gray-600 space-y-1 mb-4">
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          Create and manage ad campaigns
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          Sync product catalog
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          Read campaign performance data
+                        </li>
+                      </ul>
+                      <Button onClick={handleMetaConnect}>
+                        <MetaIcon className="h-4 w-4 mr-2" />
+                        Connect Meta Account
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-600">
+                  <strong>Note:</strong> You'll be redirected to Meta to authorize Project Auto. We
+                  never see your password.
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Coming Soon: Additional Ad Platforms */}
+        <Card className="opacity-60">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center">
+                <Lock className="h-5 w-5 text-gray-400" />
               </div>
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" size="sm">
-                  Reconnect
-                </Button>
-                <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                  Disconnect
-                </Button>
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Additional ad platforms
+                  <Badge variant="outline" className="text-xs">Coming in v2</Badge>
+                </CardTitle>
+                <CardDescription>Expand to more advertising channels</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {/* TikTok */}
+              <div className="p-4 border rounded-lg bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border">
+                    <TikTokIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-medium">TikTok Ads</div>
+                    <div className="text-sm text-gray-600">Reach younger audiences</div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+              </div>
+
+              {/* X (Twitter) */}
+              <div className="p-4 border rounded-lg bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border">
+                    <XIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-medium">X Ads</div>
+                    <div className="text-sm text-gray-600">Engage professional networks</div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+              </div>
+
+              {/* Google Ads */}
+              <div className="p-4 border rounded-lg bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center border">
+                    <div className="text-xl font-bold text-gray-600">G</div>
+                  </div>
+                  <div>
+                    <div className="font-medium">Google Ads</div>
+                    <div className="text-sm text-gray-600">Search & display advertising</div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs">Coming Soon</Badge>
               </div>
             </div>
 
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-yellow-900">
-                <strong>MVP limitation:</strong> Only Meta Ads supported. Google Ads, TikTok,
-                and other platforms coming in v2.
-              </p>
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-900">
+              These platforms will be available in version 2. Meta Ads covers Facebook and
+              Instagram in the current version.
             </div>
           </CardContent>
         </Card>

@@ -16,6 +16,7 @@ import { supportCaseRoutes } from "./routes/supportCases.js";
 import { itemsRoutes } from "./routes/items.js";
 import { adminRoutes } from "./routes/admin.js";
 import { metaRoutes } from "./routes/meta.js";
+import { adsRoutes } from "./routes/ads.js";
 
 const app = Fastify({ logger: true });
 
@@ -29,6 +30,8 @@ if (!process.env["COOKIE_SECRET"]) {
 app.addHook("preHandler", (request, reply, done) => {
   const path = request.url?.split("?")[0];
   if (path === "/health" || path === "/signup" || path?.startsWith("/auth/")) return done();
+  // OAuth callback needs session but not customer context (it validates state instead)
+  if (path === "/meta/oauth/callback") return done();
   if (path?.startsWith("/admin/")) {
     requireAdminContext(request, reply, done);
     return;
@@ -62,6 +65,7 @@ await app.register(itemsRoutes);
 await app.register(supportCaseRoutes);
 await app.register(adminRoutes, { prefix: "" });
 await app.register(metaRoutes);
+await app.register(adsRoutes);
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {

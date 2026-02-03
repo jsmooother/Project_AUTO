@@ -3,7 +3,7 @@ import { eq, and, desc, inArray, gte } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { queue } from "../lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
-import { inventorySources, crawlRuns, previewRuns } from "@repo/db/schema";
+import { inventorySources, crawlRuns, previewRuns, adRuns } from "@repo/db/schema";
 
 export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
   // POST /runs/crawl - enqueue a crawl run for the active source (manual trigger)
@@ -78,7 +78,7 @@ export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // GET /runs?type=crawl|preview - list recent crawl or preview runs for customer
+  // GET /runs?type=crawl|preview|ads - list recent crawl, preview, or ads runs for customer
   app.get<{ Querystring: { type?: string; limit?: string } }>("/runs", async (request, reply) => {
     const customerId = request.customer.customerId;
     const type = request.query.type ?? "crawl";
@@ -124,9 +124,33 @@ export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ data: runs });
     }
 
+    if (type === "ads") {
+      const rows = await db
+        .select({
+          id: adRuns.id,
+          trigger: adRuns.trigger,
+          status: adRuns.status,
+          startedAt: adRuns.startedAt,
+          finishedAt: adRuns.finishedAt,
+          errorMessage: adRuns.errorMessage,
+          createdAt: adRuns.createdAt,
+        })
+        .from(adRuns)
+        .where(eq(adRuns.customerId, customerId))
+        .orderBy(desc(adRuns.createdAt))
+        .limit(limit);
+      const runs = rows.map((r) => ({
+        ...r,
+        type: "ads" as const,
+        inventorySourceId: null,
+        templateConfigId: null,
+      }));
+      return reply.send({ data: runs });
+    }
+
     return reply.status(400).send({
       error: "VALIDATION_ERROR",
-      message: "Query param type must be 'crawl' or 'preview'",
+      message: "Query param type must be 'crawl', 'preview', or 'ads'",
     });
   });
 }

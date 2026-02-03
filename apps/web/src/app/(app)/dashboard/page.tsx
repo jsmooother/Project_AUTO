@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
@@ -30,9 +30,10 @@ interface MetaConnectionStatus {
   scopes: string[] | null;
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { auth } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [websiteSource, setWebsiteSource] = useState<{ websiteUrl: string } | null>(null);
   const [itemsCount, setItemsCount] = useState(0);
@@ -48,6 +49,7 @@ export default function DashboardPage() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
   const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
+  const metaEnabled = process.env.NEXT_PUBLIC_META_ENABLED === "true";
 
   const load = () => {
     if (!customerId) return;
@@ -76,6 +78,25 @@ export default function DashboardPage() {
   useEffect(() => {
     if (customerId) load();
   }, [customerId]);
+
+  // Handle OAuth callback query params
+  useEffect(() => {
+    const metaParam = searchParams.get("meta");
+    if (metaParam === "connected") {
+      // Reload Meta status after successful connection
+      if (customerId) {
+        apiGet<MetaConnectionStatus>("/meta/status", { customerId }).then((res) => {
+          if (res.ok) setMetaConnection(res.data);
+        });
+      }
+      // Clear query param
+      router.replace("/dashboard");
+    } else if (metaParam === "error") {
+      const errorMsg = searchParams.get("error") || "Meta connection failed";
+      setMetaError(errorMsg);
+      router.replace("/dashboard");
+    }
+  }, [searchParams, customerId, router]);
 
   const handleRunNow = async () => {
     if (!customerId) return;
@@ -114,13 +135,30 @@ export default function DashboardPage() {
     if (!customerId) return;
     setMetaLoading(true);
     setMetaError(null);
-    const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
-    setMetaLoading(false);
-    if (res.ok) {
-      setMetaConnection(res.data);
+
+    // Use real OAuth if enabled, otherwise use dev-connect
+    if (metaEnabled) {
+      try {
+        const res = await apiGet<{ url: string }>("/meta/oauth/connect-url", { customerId });
+        if (res.ok && res.data.url) {
+          window.location.href = res.data.url;
+          return; // Don't set loading to false, we're redirecting
+        } else if (!res.ok) {
+          setMetaError(res.error ?? "Failed to get OAuth URL");
+        }
+      } catch (err) {
+        setMetaError("Failed to start OAuth flow");
+      }
     } else {
-      setMetaError(res.error);
+      // Dev mode: use fake connect
+      const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
+      if (res.ok) {
+        setMetaConnection(res.data);
+      } else {
+        setMetaError(res.error);
+      }
     }
+    setMetaLoading(false);
   };
 
   const handleMetaDisconnect = async () => {
@@ -400,88 +438,105 @@ export default function DashboardPage() {
                   {metaError}
                 </div>
               )}
-              {metaConnected ? (
-                <>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      padding: "0.2rem 0.5rem",
-                      background: "#d1fae5",
-                      color: "#065f46",
-                      border: "1px solid #a7f3d0",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    <CheckCircle2 style={{ width: 12, height: 12 }} />
-                    Connected
-                  </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
-                    {metaConnection?.adAccountId ? `Account: ${metaConnection.adAccountId}` : "Connected"}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleMetaDisconnect}
-                    disabled={metaLoading}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      fontSize: "0.75rem",
-                      border: "1px solid var(--pa-border)",
-                      borderRadius: 4,
-                      background: "white",
-                      cursor: metaLoading ? "not-allowed" : "pointer",
-                      color: "var(--pa-gray)",
-                    }}
-                  >
-                    {metaLoading ? "Disconnecting..." : "Disconnect"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span
-                    style={{
-                      padding: "0.2rem 0.5rem",
-                      background: "#f3f4f6",
-                      color: "var(--pa-gray)",
-                      border: "1px solid var(--pa-border)",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.5rem",
-                      display: "inline-block",
-                    }}
-                  >
-                    Not connected
-                  </span>
-                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                    {allowDevMeta && (
-                      <button
-                        type="button"
-                        onClick={handleMetaConnect}
-                        disabled={metaLoading}
-                        style={{
-                          padding: "0.25rem 0.5rem",
-                          fontSize: "0.75rem",
-                          border: "1px solid var(--pa-border)",
-                          borderRadius: 4,
-                          background: "white",
-                          cursor: metaLoading ? "not-allowed" : "pointer",
-                          color: "var(--pa-dark)",
-                        }}
-                      >
-                        {metaLoading ? "Connecting..." : "Dev: Fake connect"}
-                      </button>
-                    )}
-                    {!allowDevMeta && (
-                      <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                        Coming soon
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
+              {metaEnabled || allowDevMeta ? (
+                metaConnected ? (
+                  <>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "0.2rem 0.5rem",
+                        background: "#d1fae5",
+                        color: "#065f46",
+                        border: "1px solid #a7f3d0",
+                        borderRadius: 4,
+                        fontSize: "0.75rem",
+                        marginBottom: "0.25rem",
+                      }}
+                    >
+                      <CheckCircle2 style={{ width: 12, height: 12 }} />
+                      Connected
+                    </span>
+                    <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
+                      {metaConnection?.adAccountId ? `Account: ${metaConnection.adAccountId}` : "Connected"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMetaDisconnect}
+                      disabled={metaLoading}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.75rem",
+                        border: "1px solid var(--pa-border)",
+                        borderRadius: 4,
+                        background: "white",
+                        cursor: metaLoading ? "not-allowed" : "pointer",
+                        color: "var(--pa-gray)",
+                      }}
+                    >
+                      {metaLoading ? "Disconnecting..." : "Disconnect"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        padding: "0.2rem 0.5rem",
+                        background: "#f3f4f6",
+                        color: "var(--pa-gray)",
+                        border: "1px solid var(--pa-border)",
+                        borderRadius: 4,
+                        fontSize: "0.75rem",
+                        marginBottom: "0.5rem",
+                        display: "inline-block",
+                      }}
+                    >
+                      Not connected
+                    </span>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {allowDevMeta && (
+                        <button
+                          type="button"
+                          onClick={handleMetaConnect}
+                          disabled={metaLoading}
+                          style={{
+                            padding: "0.5rem 1rem",
+                            fontSize: "0.875rem",
+                            border: "1px solid var(--pa-border)",
+                            borderRadius: 6,
+                            background: metaLoading ? "#d1d5db" : "#fef3c7",
+                            cursor: metaLoading ? "not-allowed" : "pointer",
+                            color: "#92400e",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {metaLoading ? "Connecting..." : "🔧 Dev: Fake Connect"}
+                        </button>
+                      )}
+                      {metaEnabled && (
+                        <button
+                          type="button"
+                          onClick={handleMetaConnect}
+                          disabled={metaLoading}
+                          style={{
+                            padding: "0.5rem 1rem",
+                            fontSize: "0.875rem",
+                            border: "1px solid var(--pa-border)",
+                            borderRadius: 6,
+                            background: metaLoading ? "#d1d5db" : "var(--pa-blue)",
+                            cursor: metaLoading ? "not-allowed" : "pointer",
+                            color: "white",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {metaLoading ? "Connecting..." : "Connect Meta"}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )
+              ) : null}
             </div>
           </div>
 
@@ -834,5 +889,13 @@ export default function DashboardPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <DashboardContent />
+    </Suspense>
   );
 }

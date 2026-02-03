@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { LayoutDashboard, Package, Play, DollarSign, Settings as SettingsIcon, ChevronDown, Palette } from "lucide-react";
+import { LayoutDashboard, Package, Play, DollarSign, Settings as SettingsIcon, ChevronDown, Palette, Megaphone } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
   DropdownMenu,
@@ -62,6 +62,15 @@ export function AppLayout() {
                   >
                     <Palette className="h-4 w-4" />
                     Templates
+                  </Button>
+                </Link>
+                <Link to="/app/ads">
+                  <Button
+                    variant={isActive("/app/ads") ? "secondary" : "ghost"}
+                    className="gap-2"
+                  >
+                    <Megaphone className="h-4 w-4" />
+                    Ads
                   </Button>
                 </Link>
                 <Link to="/app/billing">

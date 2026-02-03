@@ -20,4 +20,4 @@ scripts/out/
 # OS / editor
 .DS_Store
 .idea/
-.vscode/
+.vscode/.dev/

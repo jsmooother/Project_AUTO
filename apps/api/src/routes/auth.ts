@@ -34,7 +34,13 @@ function setSessionCookie(
 }
 
 function clearSessionCookie(reply: { clearCookie: (name: string, options?: object) => void }): void {
-  reply.clearCookie(SESSION_COOKIE, { path: "/" });
+  // Match sameSite/secure settings for proper cookie clearing
+  reply.clearCookie(SESSION_COOKIE, {
+    path: "/",
+    httpOnly: true,
+    secure: process.env["NODE_ENV"] === "production",
+    sameSite: "lax",
+  });
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {

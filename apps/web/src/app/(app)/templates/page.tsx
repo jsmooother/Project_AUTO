@@ -501,6 +501,50 @@ export default function TemplatesPage() {
         </section>
       </div>
 
+      {/* Status indicator */}
+      {config && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "1rem 1.5rem",
+            background: config.status === "approved" ? "#d1fae5" : config.status === "preview_ready" ? "#dbeafe" : "#f3f4f6",
+            border: `1px solid ${config.status === "approved" ? "#10b981" : config.status === "preview_ready" ? "#3b82f6" : "var(--pa-border)"}`,
+            borderRadius: "var(--pa-radius-lg)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: "0.25rem", fontSize: "0.95rem" }}>
+                Template Status: <span style={{ textTransform: "capitalize" }}>{config.status.replace("_", " ")}</span>
+              </div>
+              <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                {config.status === "draft"
+                  ? "Save your template configuration to proceed"
+                  : config.status === "preview_ready"
+                    ? "Review the generated previews below, then approve to use this template"
+                    : config.status === "approved"
+                      ? "This template is approved and ready to use for ads"
+                      : ""}
+              </div>
+            </div>
+            {config.status === "approved" && (
+              <div
+                style={{
+                  padding: "0.25rem 0.75rem",
+                  background: "var(--pa-green)",
+                  color: "white",
+                  borderRadius: 4,
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                }}
+              >
+                ✓ Approved
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Footer bar */}
       <div
         style={{
@@ -519,7 +563,42 @@ export default function TemplatesPage() {
           Template: {style}
           <span style={{ marginLeft: "1rem" }}>Format: {format === "feed" ? "Feed (Square)" : "Stories (Vertical)"}</span>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={handleApplyTemplate}
+            disabled={applyLoading}
+            style={{
+              padding: "0.5rem 1rem",
+              background: applyLoading ? "#d1d5db" : primaryColor,
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontWeight: 500,
+              fontSize: "0.875rem",
+              cursor: applyLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {applyLoading ? "Saving…" : config ? "Update Config" : "Save Template"}
+          </button>
+          {config && config.status !== "approved" && (
+            <button
+              type="button"
+              onClick={handlePreviewMore}
+              disabled={previewMoreLoading}
+              style={{
+                padding: "0.5rem 1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                fontWeight: 500,
+                fontSize: "0.875rem",
+                cursor: previewMoreLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {previewMoreLoading ? "Starting…" : "Generate Previews"}
+            </button>
+          )}
           {config?.status === "preview_ready" && (
             <button
               type="button"
@@ -532,43 +611,13 @@ export default function TemplatesPage() {
                 border: "none",
                 borderRadius: 6,
                 fontWeight: 500,
+                fontSize: "0.875rem",
                 cursor: approveLoading ? "not-allowed" : "pointer",
               }}
             >
-              {approveLoading ? "Approving…" : "Approve Template"}
+              {approveLoading ? "Approving…" : "✓ Approve Template"}
             </button>
           )}
-          <button
-            type="button"
-            onClick={handlePreviewMore}
-            disabled={previewMoreLoading}
-            style={{
-              padding: "0.5rem 1rem",
-              border: "1px solid var(--pa-border)",
-              borderRadius: 6,
-              background: "white",
-              fontWeight: 500,
-              cursor: previewMoreLoading ? "not-allowed" : "pointer",
-            }}
-          >
-            {previewMoreLoading ? "Starting…" : "Preview More"}
-          </button>
-          <button
-            type="button"
-            onClick={handleApplyTemplate}
-            disabled={applyLoading}
-            style={{
-              padding: "0.5rem 1rem",
-              background: applyLoading ? "#d1d5db" : primaryColor,
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              fontWeight: 500,
-              cursor: applyLoading ? "not-allowed" : "pointer",
-            }}
-          >
-            {applyLoading ? "Saving…" : "Apply Template"}
-          </button>
         </div>
       </div>
 
