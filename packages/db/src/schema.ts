@@ -394,3 +394,22 @@ export const approvals = pgTable("approvals", {
   approvedByUserId: uuid("approved_by_user_id"),
   notes: text("notes"),
 });
+
+export const metaConnections = pgTable(
+  "meta_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("disconnected"), // disconnected|connected|error
+    metaUserId: text("meta_user_id"),
+    accessToken: text("access_token"), // dev placeholder only
+    tokenExpiresAt: timestamp("token_expires_at", { withTimezone: true }),
+    scopes: text("scopes").array(),
+    adAccountId: text("ad_account_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique().on(t.customerId)]
+);
