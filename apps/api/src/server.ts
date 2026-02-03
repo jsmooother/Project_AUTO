@@ -15,6 +15,7 @@ import { inventoryRoutes } from "./routes/inventory.js";
 import { supportCaseRoutes } from "./routes/supportCases.js";
 import { itemsRoutes } from "./routes/items.js";
 import { adminRoutes } from "./routes/admin.js";
+import { metaRoutes } from "./routes/meta.js";
 
 const app = Fastify({ logger: true });
 
@@ -60,6 +61,7 @@ await app.register(inventoryRoutes);
 await app.register(itemsRoutes);
 await app.register(supportCaseRoutes);
 await app.register(adminRoutes, { prefix: "" });
+await app.register(metaRoutes);
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {
