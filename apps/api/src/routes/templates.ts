@@ -88,7 +88,7 @@ export async function templatesRoutes(app: FastifyInstance): Promise<void> {
       ? "draft"
       : invalidateApproval
         ? "draft"
-        : existing.status;
+        : (existing.status as "draft" | "preview_ready" | "approved");
 
     const values = {
       templateKey: parsed.data.templateKey,
