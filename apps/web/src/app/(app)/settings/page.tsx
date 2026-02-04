@@ -610,7 +610,7 @@ function SettingsPage() {
               {metaError}
             </div>
           )}
-          {metaConnection?.status === "connected" ? (
+          {metaConnection?.status === "connected" && (
             <div
               style={{
                 display: "flex",
@@ -779,7 +779,7 @@ function SettingsPage() {
               )}
             </div>
           )}
-          {metaConnection?.status !== "connected" ? (
+          {metaConnection?.status !== "connected" && (
             <div
               style={{
                 display: "flex",

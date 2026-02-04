@@ -2,7 +2,7 @@ import { createRedisQueueAdapter } from "@repo/queue";
 import { JOB_TYPES } from "@repo/queue";
 import { db } from "./db.js";
 import { createRunEventsWriter } from "@repo/observability/runEvents";
-import { scrapeRuns, crawlRuns, previewRuns } from "@repo/db/schema";
+import { scrapeRuns, crawlRuns, previewRuns, adRuns } from "@repo/db/schema";
 import { and, eq } from "drizzle-orm";
 
 const RUN_ID_UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -45,6 +45,15 @@ const queue = createRedisQueueAdapter({
             finishedAt: new Date(),
           })
           .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, correlation.customerId)));
+      } else if (jobType === JOB_TYPES.ADS_SYNC || jobType === JOB_TYPES.ADS_PUBLISH) {
+        await db
+          .update(adRuns)
+          .set({
+            status: "failed",
+            errorMessage: error.message,
+            finishedAt: new Date(),
+          })
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, correlation.customerId)));
       } else {
         await db
           .update(scrapeRuns)

@@ -316,7 +316,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(adTemplateConfigs.customerId, customerId))
       .limit(1);
 
-    const [adSettings] = await db
+    const [adSettingsRow] = await db
       .select()
       .from(adSettings)
       .where(eq(adSettings.customerId, customerId))
@@ -350,7 +350,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         templateStatus: templateConfig?.status ?? null,
       },
       ads: {
-        settings: adSettings ?? null,
+        settings: adSettingsRow ?? null,
         objects: metaObjects ?? null,
         connection: metaConnection ?? null,
         onboarding: onboarding ?? null,

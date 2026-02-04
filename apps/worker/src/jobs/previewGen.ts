@@ -104,10 +104,12 @@ export async function processPreviewGen(
 
   if (!customerId || !runId || !templateConfigId) {
     const msg = "Missing correlation: customerId, runId and payload.templateConfigId required";
-    await db
-      .update(previewRuns)
-      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
-      .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, customerId)));
+    if (customerId && runId) {
+      await db
+        .update(previewRuns)
+        .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+        .where(and(eq(previewRuns.id, runId), eq(previewRuns.customerId, customerId)));
+    }
     await job.deadLetter(msg);
     return;
   }

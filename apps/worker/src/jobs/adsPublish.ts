@@ -166,6 +166,18 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
     const metaSpendCap = parseFloat(String(budgetPlan.metaMonthlyCap));
     const dailyMetaBudget = metaSpendCap / 30;
     const derivedDailyBudgetCents = Math.floor(dailyMetaBudget * 100);
+    const minDailyBudgetCentsRaw = parseInt(process.env["META_MIN_DAILY_BUDGET_CENTS"] ?? "100", 10);
+    const minDailyBudgetCents = Number.isFinite(minDailyBudgetCentsRaw) ? minDailyBudgetCentsRaw : 100;
+
+    if (!Number.isFinite(derivedDailyBudgetCents) || derivedDailyBudgetCents <= 0 || derivedDailyBudgetCents < minDailyBudgetCents) {
+      const msg = `Derived daily budget is too low (${derivedDailyBudgetCents} cents). Increase monthly budget or adjust META_MIN_DAILY_BUDGET_CENTS.`;
+      await db
+        .update(adRuns)
+        .set({ status: "failed", finishedAt: new Date(), errorMessage: `CONFIG_ERROR: ${msg}` })
+        .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+      await job.deadLetter(msg);
+      return;
+    }
 
     console.log(
       JSON.stringify({

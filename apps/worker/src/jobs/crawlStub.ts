@@ -24,10 +24,12 @@ export async function processCrawlStub(
 
   if (!customerId || !runId || !inventorySourceId) {
     const msg = "Missing correlation: customerId, runId and payload.inventorySourceId required";
-    await db
-      .update(crawlRuns)
-      .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
-      .where(and(eq(crawlRuns.id, runId), eq(crawlRuns.customerId, customerId)));
+    if (customerId && runId) {
+      await db
+        .update(crawlRuns)
+        .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+        .where(and(eq(crawlRuns.id, runId), eq(crawlRuns.customerId, customerId)));
+    }
     await job.deadLetter(msg);
     return;
   }
