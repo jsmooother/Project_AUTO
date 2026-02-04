@@ -5,6 +5,7 @@ import { processScrapeTest } from "./jobs/scrapeTest.js";
 import { processSourceProbe } from "./jobs/sourceProbe.js";
 import { processScrapeProd } from "./jobs/scrapeProd.js";
 import { processCrawlStub } from "./jobs/crawlStub.js";
+import { processCrawlRealIvars } from "./jobs/crawlRealIvars.js";
 import { processPreviewGen } from "./jobs/previewGen.js";
 import { processAdsSync } from "./jobs/adsSync.js";
 import { processAdsPublish } from "./jobs/adsPublish.js";
@@ -43,6 +44,9 @@ workers.push(
 );
 workers.push(
   queue.createWorker(JOB_TYPES.CRAWL, processCrawlStub)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.CRAWL_REAL, processCrawlRealIvars)
 );
 workers.push(
   queue.createWorker(JOB_TYPES.PREVIEW, processPreviewGen)

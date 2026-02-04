@@ -53,6 +53,11 @@ export default function AdminCustomerDetailPage() {
   const [crawlLoading, setCrawlLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [realCrawlLoading, setRealCrawlLoading] = useState(false);
+  const [realCrawlUrl, setRealCrawlUrl] = useState("https://www.ivarsbil.se");
+  const [scrapeQaOpen, setScrapeQaOpen] = useState(false);
+  const [scrapeQaData, setScrapeQaData] = useState<any[] | null>(null);
+  const [scrapeQaLoading, setScrapeQaLoading] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   const isDev = process.env.NODE_ENV === "development";
@@ -155,6 +160,227 @@ export default function AdminCustomerDetailPage() {
           <a href={data.inventorySource.websiteUrl} target="_blank" rel="noopener noreferrer">
             {data.inventorySource.websiteUrl}
           </a>
+        </div>
+      )}
+
+      {tab === "overview" && process.env.NEXT_PUBLIC_SHOW_ADMIN_LINK === "true" && (
+        <div style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px", background: "#f9fafb" }}>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.75rem" }}>Real Crawl Test</h3>
+          <p style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+            Test real crawl for ivarsbil.se (dev/admin only)
+          </p>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-end" }}>
+            <div style={{ flex: 1 }}>
+              <label htmlFor="real-crawl-url" style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem", fontWeight: 500 }}>
+                Head URL
+              </label>
+              <input
+                id="real-crawl-url"
+                type="text"
+                value={realCrawlUrl}
+                onChange={(e) => setRealCrawlUrl(e.target.value)}
+                placeholder="https://www.ivarsbil.se"
+                style={{
+                  width: "100%",
+                  padding: "0.5rem",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "4px",
+                  fontSize: "0.875rem",
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!customerId) return;
+                setRealCrawlLoading(true);
+                setToast(null);
+                try {
+                  const res = await fetch(`${apiUrl}/admin/customers/${customerId}/crawl/real`, {
+                    method: "POST",
+                    headers: {
+                      ...getAdminHeaders(),
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      headUrl: realCrawlUrl || "https://www.ivarsbil.se",
+                      limit: 10,
+                      site: "ivarsbil.se",
+                    }),
+                  });
+                  if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.error?.message || "Failed to start crawl");
+                  }
+                  const result = await res.json();
+                  setToast({
+                    type: "success",
+                    message: `Real crawl started`,
+                    runId: result.runId,
+                  });
+                  setTimeout(() => {
+                    load();
+                  }, 2000);
+                } catch (err) {
+                  setToast({
+                    type: "error",
+                    message: err instanceof Error ? err.message : "Failed to start crawl",
+                  });
+                } finally {
+                  setRealCrawlLoading(false);
+                }
+              }}
+              disabled={realCrawlLoading}
+              style={{
+                padding: "0.5rem 1rem",
+                background: realCrawlLoading ? "#9ca3af" : "#37474f",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: realCrawlLoading ? "not-allowed" : "pointer",
+                fontWeight: 500,
+                fontSize: "0.875rem",
+              }}
+            >
+              {realCrawlLoading ? "Starting..." : "Crawl 10 real listings"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === "overview" && process.env.NEXT_PUBLIC_SHOW_ADMIN_LINK === "true" && (
+        <div style={{ marginTop: "1.5rem", padding: "1rem", border: "1px solid #e5e7eb", borderRadius: "8px", background: "#f9fafb" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: scrapeQaOpen ? "0.75rem" : 0 }}>
+            <h3 style={{ fontSize: "1rem", fontWeight: 600 }}>Scrape QA (latest 10)</h3>
+            <button
+              type="button"
+              onClick={async () => {
+                if (scrapeQaOpen) {
+                  setScrapeQaOpen(false);
+                  return;
+                }
+                setScrapeQaOpen(true);
+                if (!scrapeQaData && !scrapeQaLoading) {
+                  setScrapeQaLoading(true);
+                  try {
+                    const res = await fetch(`${apiUrl}/admin/customers/${customerId}/inventory/sample?limit=10`, {
+                      headers: getAdminHeaders(),
+                    });
+                    if (!res.ok) throw new Error("Failed to load sample");
+                    const result = await res.json();
+                    setScrapeQaData(result.data || []);
+                  } catch (err) {
+                    setToast({
+                      type: "error",
+                      message: err instanceof Error ? err.message : "Failed to load sample",
+                    });
+                  } finally {
+                    setScrapeQaLoading(false);
+                  }
+                }
+              }}
+              style={{
+                padding: "0.25rem 0.75rem",
+                background: "#6b7280",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+              }}
+            >
+              {scrapeQaOpen ? "Hide" : "Show"}
+            </button>
+          </div>
+          {scrapeQaOpen && (
+            <div style={{ marginTop: "0.75rem" }}>
+              {scrapeQaLoading ? (
+                <p style={{ fontSize: "0.875rem", color: "#666" }}>Loading...</p>
+              ) : scrapeQaData && scrapeQaData.length > 0 ? (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                    <thead>
+                      <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>QA</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>Title</th>
+                        <th style={{ padding: "0.5rem", textAlign: "right", fontWeight: 600 }}>Price</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>Source</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>Year</th>
+                        <th style={{ padding: "0.5rem", textAlign: "right", fontWeight: 600 }}>Mileage</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>Image</th>
+                        <th style={{ padding: "0.5rem", textAlign: "left", fontWeight: 600 }}>URL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scrapeQaData.map((item: any) => {
+                        // QA validation logic (matches worker validation)
+                        const price = item.detailsJson?.priceAmount ?? item.price ?? 0;
+                        const hasTitle = !!item.title;
+                        const hasImage = !!(item.detailsJson?.primaryImageUrl || (item.detailsJson?.images && Array.isArray(item.detailsJson.images) && item.detailsJson.images.length > 0));
+                        const hasValidUrl = !!(item.url && item.url.startsWith("https"));
+                        const priceValid = price >= 50000;
+                        
+                        const qaPass = hasTitle && hasImage && hasValidUrl && priceValid;
+                        const qaBadge = qaPass ? (
+                          <span style={{ padding: "0.125rem 0.5rem", background: "#10b981", color: "white", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}>
+                            PASS
+                          </span>
+                        ) : (
+                          <span style={{ padding: "0.125rem 0.5rem", background: "#ef4444", color: "white", borderRadius: "4px", fontSize: "0.75rem", fontWeight: 600 }}>
+                            FAIL
+                          </span>
+                        );
+                        
+                        return (
+                          <tr key={item.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "0.5rem" }}>{qaBadge}</td>
+                            <td style={{ padding: "0.5rem", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {item.title || "-"}
+                            </td>
+                            <td style={{ padding: "0.5rem", textAlign: "right" }}>
+                              {price ? `${price.toLocaleString()} ${item.detailsJson?.currency || "SEK"}` : "-"}
+                            </td>
+                            <td style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#666" }}>
+                              {item.detailsJson?.priceSource || "-"}
+                            </td>
+                            <td style={{ padding: "0.5rem" }}>{item.detailsJson?.year || "-"}</td>
+                            <td style={{ padding: "0.5rem", textAlign: "right" }}>
+                              {item.detailsJson?.mileageKm ? `${item.detailsJson.mileageKm.toLocaleString()} km` : "-"}
+                            </td>
+                            <td style={{ padding: "0.5rem" }}>
+                              {item.detailsJson?.primaryImageUrl ? (
+                                <img
+                                  src={item.detailsJson.primaryImageUrl}
+                                  alt=""
+                                  style={{ width: "60px", height: "40px", objectFit: "cover", borderRadius: "4px" }}
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                            <td style={{ padding: "0.5rem" }}>
+                              {item.url ? (
+                                <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontSize: "0.75rem" }}>
+                                  View
+                                </a>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ fontSize: "0.875rem", color: "#666" }}>No items with details_json found.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

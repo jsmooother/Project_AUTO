@@ -23,6 +23,7 @@ import {
   metaConnections,
   adsBudgetPlans,
 } from "@repo/db/schema";
+import { z } from "zod";
 
 const DEMO_PASSWORD = "demo-password";
 
@@ -524,7 +525,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .insert(adRuns)
         .values({
           customerId,
-          trigger: "admin",
+          trigger: "manual",
           status: "queued",
         })
         .returning({ id: adRuns.id });
@@ -610,7 +611,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .insert(adRuns)
         .values({
           customerId,
-          trigger: "admin",
+          trigger: "manual",
           status: "queued",
         })
         .returning({ id: adRuns.id });
@@ -864,4 +865,139 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     });
   });
+
+  // POST /admin/customers/:customerId/crawl/real - trigger real crawl for ivarsbil.se
+  app.post<{ Params: { customerId: string }; Body: { headUrl: string; limit?: number; site?: string } }>(
+    "/admin/customers/:customerId/crawl/real",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const body = request.body as { headUrl?: string; limit?: number; site?: string };
+
+      // Validate customer exists
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "Customer not found" },
+        });
+      }
+
+      // Validate URL
+      const headUrl = body.headUrl ?? "https://www.ivarsbil.se";
+      try {
+        const url = new URL(headUrl);
+        if (!["http:", "https:"].includes(url.protocol)) {
+          return reply.status(400).send({
+            error: { code: "VALIDATION_ERROR", message: "URL must use http or https protocol" },
+          });
+        }
+      } catch {
+        return reply.status(400).send({
+          error: { code: "VALIDATION_ERROR", message: "Invalid URL format" },
+        });
+      }
+
+      // Validate limit
+      const limit = Math.min(Math.max(body.limit ?? 10, 1), 25);
+      const site = body.site ?? "ivarsbil.se";
+
+      // Ensure inventory source exists
+      let [source] = await db
+        .select()
+        .from(inventorySources)
+        .where(and(eq(inventorySources.customerId, customerId), eq(inventorySources.status, "active")))
+        .limit(1);
+
+      if (!source) {
+        const [newSource] = await db
+          .insert(inventorySources)
+          .values({
+            customerId,
+            websiteUrl: headUrl,
+            status: "active",
+          })
+          .returning();
+        if (!newSource) {
+          return reply.status(500).send({
+            error: { code: "INTERNAL", message: "Failed to create inventory source" },
+          });
+        }
+        source = newSource;
+      }
+
+      // Create crawl run
+      const [run] = await db
+        .insert(crawlRuns)
+        .values({
+          customerId,
+          inventorySourceId: source.id,
+          trigger: "manual",
+          status: "queued",
+        })
+        .returning({ id: crawlRuns.id });
+
+      if (!run) {
+        return reply.status(500).send({
+          error: { code: "INTERNAL", message: "Failed to create crawl run" },
+        });
+      }
+
+      // Enqueue CRAWL_REAL job
+      const jobId = await queue.enqueue({
+        jobType: JOB_TYPES.CRAWL_REAL,
+        payload: {
+          customerId,
+          headUrl,
+          limit,
+          site,
+        },
+        correlation: {
+          customerId,
+          runId: String(run.id),
+        },
+      });
+
+      request.log.info({ runId: run.id, customerId, jobId, headUrl, limit, site, event: "crawl_real_enqueued" });
+
+      return reply.status(201).send({
+        runId: String(run.id),
+        jobId,
+      });
+    }
+  );
+
+  // GET /admin/customers/:customerId/inventory/sample - get sample inventory items for QA
+  app.get<{ Params: { customerId: string }; Querystring: { limit?: string } }>(
+    "/admin/customers/:customerId/inventory/sample",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const limit = Math.min(Math.max(parseInt(request.query.limit ?? "10", 10), 1), 50);
+
+      // Validate customer exists
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return reply.status(404).send({
+          error: { code: "NOT_FOUND", message: "Customer not found" },
+        });
+      }
+
+      // Get latest inventory items with details_json
+      const items = await db
+        .select({
+          id: inventoryItems.id,
+          title: inventoryItems.title,
+          price: inventoryItems.price,
+          url: inventoryItems.url,
+          detailsJson: inventoryItems.detailsJson,
+          createdAt: inventoryItems.firstSeenAt,
+        })
+        .from(inventoryItems)
+        .where(and(eq(inventoryItems.customerId, customerId), sql`${inventoryItems.detailsJson} IS NOT NULL`))
+        .orderBy(desc(inventoryItems.firstSeenAt))
+        .limit(limit);
+
+      return reply.status(200).send({
+        data: items,
+      });
+    }
+  );
 }

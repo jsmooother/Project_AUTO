@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import {
   adSettings,
@@ -11,9 +11,11 @@ import {
   inventorySources,
   adsBudgetPlans,
   onboardingStates,
+  inventoryItems,
 } from "@repo/db/schema";
 import type { QueuedJob } from "@repo/queue";
 import { metaPost, type MetaGraphError } from "../lib/metaGraph.js";
+import { projectInventoryItemForMeta, validateItemForMeta, type MetaProjectedItem } from "../lib/metaItemProjection.js";
 
 /**
  * ADS_PUBLISH job: Campaign publish
@@ -53,6 +55,63 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
       .update(adRuns)
       .set({ status: "running", startedAt: now })
       .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+
+    // QA Gate: Validate scrape quality before proceeding
+    const qaSampleSize = 10;
+    const qaItems = await db
+      .select({
+        id: inventoryItems.id,
+        title: inventoryItems.title,
+        url: inventoryItems.url,
+        price: inventoryItems.price,
+        detailsJson: inventoryItems.detailsJson,
+      })
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.customerId, customerId), sql`${inventoryItems.detailsJson} IS NOT NULL`))
+      .orderBy(desc(inventoryItems.firstSeenAt))
+      .limit(qaSampleSize);
+
+    let validCount = 0;
+    const qaResults: Array<{ itemId: string; valid: boolean; reason?: string }> = [];
+    
+    for (const item of qaItems) {
+      const validation = validateItemForMeta({
+        ...item,
+        detailsJson: item.detailsJson as Record<string, unknown> | null,
+      });
+      qaResults.push({ itemId: item.id, valid: validation.valid, reason: validation.reason });
+      if (validation.valid) {
+        validCount++;
+      }
+    }
+
+    const invalidRatio = qaItems.length > 0 ? (qaItems.length - validCount) / qaItems.length : 1;
+    const qaThreshold = 0.3; // 30% invalid threshold
+
+    if (invalidRatio > qaThreshold) {
+      const msg = `VALIDATION_ERROR: Scrape quality too low (${Math.round(invalidRatio * 100)}% invalid). Check Scrape QA panel. Requirements: price >= 50k, valid image URL, valid HTTPS URL, title present.`;
+      await db
+        .update(adRuns)
+        .set({ 
+          status: "failed", 
+          finishedAt: new Date(), 
+          errorMessage: msg,
+          metadataJson: {
+            qaGate: {
+              sampleSize: qaItems.length,
+              validCount,
+              invalidRatio,
+              threshold: qaThreshold,
+              results: qaResults,
+            },
+          },
+        })
+        .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+      await job.deadLetter(msg);
+      return;
+    }
+
+    console.log(JSON.stringify({ event: "ads_publish_qa_gate_passed", runId, customerId, validCount, total: qaItems.length, invalidRatio }));
 
     // Validation: ad_settings exists
     const [settings] = await db
@@ -234,6 +293,75 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
       const accessToken = metaConn.accessToken;
       const actId = adAccountId.replace("act_", "");
 
+      // Select latest N inventory items for Meta projection (N=2 for now)
+      const itemLimit = 2;
+      const candidateItems = await db
+        .select({
+          id: inventoryItems.id,
+          title: inventoryItems.title,
+          url: inventoryItems.url,
+          price: inventoryItems.price,
+          detailsJson: inventoryItems.detailsJson,
+        })
+        .from(inventoryItems)
+        .where(
+          and(
+            eq(inventoryItems.customerId, customerId),
+            sql`${inventoryItems.detailsJson} IS NOT NULL`
+          )
+        )
+        .orderBy(desc(inventoryItems.firstSeenAt))
+        .limit(itemLimit * 3); // Get extra candidates in case some fail projection/validation
+
+      // Project items for Meta
+      const projectedItems: MetaProjectedItem[] = [];
+      for (const item of candidateItems) {
+        const projected = projectInventoryItemForMeta({
+          ...item,
+          detailsJson: item.detailsJson as Record<string, unknown> | null,
+        });
+        if (projected) {
+          projectedItems.push(projected);
+          if (projectedItems.length >= itemLimit) {
+            break;
+          }
+        }
+      }
+
+      if (projectedItems.length === 0) {
+        const msg = "No valid inventory items found for Meta ads. Ensure items have: price >= 50k SEK, valid image URL, valid HTTPS URL, and title.";
+        await db
+          .update(adRuns)
+          .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+        await job.deadLetter(msg);
+        return;
+      }
+
+      console.log(JSON.stringify({ event: "ads_publish_items_selected", runId, customerId, count: projectedItems.length, vehicleIds: projectedItems.map(i => i.vehicleId) }));
+
+      // Store projected payloads in metadata for diagnostics (initial metadata)
+      const initialMetadata = {
+        projectedItems: projectedItems.map(item => ({
+          vehicleId: item.vehicleId,
+          title: item.title,
+          price: item.price,
+          currency: item.currency,
+          imageUrl: item.imageUrl,
+          destinationUrl: item.destinationUrl,
+        })),
+        qaGate: {
+          sampleSize: qaItems.length,
+          validCount,
+          invalidRatio,
+        },
+      };
+      
+      await db
+        .update(adRuns)
+        .set({ metadataJson: initialMetadata })
+        .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+
       // Load existing meta_ad_objects (Step 3 may have already run)
       const [existingObjects] = await db
         .select()
@@ -407,17 +535,24 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
           return;
         }
 
-        let destinationUrl: string | undefined = process.env["META_DESTINATION_URL"];
+        // Use first projected item for ad creative (or fallback to env/website)
+        const primaryItem = projectedItems[0];
+        let destinationUrl: string | undefined = primaryItem?.destinationUrl;
+        
         if (!destinationUrl) {
-          const [source] = await db
-            .select({ websiteUrl: inventorySources.websiteUrl })
-            .from(inventorySources)
-            .where(eq(inventorySources.customerId, customerId))
-            .limit(1);
-          destinationUrl = source?.websiteUrl ?? undefined;
+          destinationUrl = process.env["META_DESTINATION_URL"];
+          if (!destinationUrl) {
+            const [source] = await db
+              .select({ websiteUrl: inventorySources.websiteUrl })
+              .from(inventorySources)
+              .where(eq(inventorySources.customerId, customerId))
+              .limit(1);
+            destinationUrl = source?.websiteUrl ?? undefined;
+          }
         }
+        
         if (!destinationUrl) {
-          const msg = "Set META_DESTINATION_URL or connect a website (inventory source) for the ad link.";
+          const msg = "Set META_DESTINATION_URL or ensure inventory items have valid URLs.";
           await db
             .update(metaAdObjects)
             .set({ lastPublishError: msg, updatedAt: now })
@@ -430,44 +565,91 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
           return;
         }
 
-        const message = config?.brandName ?? "New arrivals";
+        const message = config?.brandName ?? (primaryItem?.title ? `${primaryItem.title.substring(0, 50)}...` : "New arrivals");
 
-        // Create Ad Creative (link ad)
-        const creativePath = `/act_${actId}/adcreatives`;
-        const creativeBody: Record<string, unknown> = {
-          name: "Project Auto - Test Creative",
-          object_story_spec: {
-            page_id: pageId,
-            link_data: {
-              link: destinationUrl,
-              message,
-              call_to_action: { type: "LEARN_MORE", value: { link: destinationUrl } },
-            },
-          },
+        // Create Ad Creatives for each projected item (or at least one)
+        const createdAdIds: string[] = [];
+        const createdCreativeIds: string[] = [];
+
+        for (const item of projectedItems.slice(0, 2)) { // Limit to 2 ads for now
+          try {
+            // Create Ad Creative (link ad) with item-specific data
+            const creativePath = `/act_${actId}/adcreatives`;
+            const creativeBody: Record<string, unknown> = {
+              name: `Project Auto - ${item.title.substring(0, 50)}`,
+              object_story_spec: {
+                page_id: pageId,
+                link_data: {
+                  link: item.destinationUrl,
+                  message: item.title,
+                  image_url: item.imageUrl,
+                  call_to_action: { type: "LEARN_MORE", value: { link: item.destinationUrl } },
+                },
+              },
+            };
+
+            const creativeRes = (await metaPost(creativePath, accessToken, creativeBody)) as { id?: string };
+            if (!creativeRes.id) {
+              console.log(JSON.stringify({ event: "meta_creative_creation_failed", runId, customerId, vehicleId: item.vehicleId }));
+              continue;
+            }
+            const creativeId = creativeRes.id;
+            createdCreativeIds.push(creativeId);
+            console.log(JSON.stringify({ event: "meta_creative_created", runId, customerId, creativeId, vehicleId: item.vehicleId }));
+
+            // Create Ad (PAUSED) for this creative
+            const adsPath = `/act_${actId}/ads`;
+            const adBody: Record<string, unknown> = {
+              name: `Project Auto - ${item.title.substring(0, 50)}`,
+              adset_id: adsetId,
+              creative: { creative_id: creativeId },
+              status: "PAUSED",
+            };
+
+            const adRes = (await metaPost(adsPath, accessToken, adBody)) as { id?: string };
+            if (!adRes.id) {
+              console.log(JSON.stringify({ event: "meta_ad_creation_failed", runId, customerId, creativeId }));
+              continue;
+            }
+            const adId = adRes.id;
+            createdAdIds.push(adId);
+            console.log(JSON.stringify({ event: "meta_ad_created", runId, customerId, adId, vehicleId: item.vehicleId }));
+          } catch (adErr) {
+            console.log(JSON.stringify({ event: "meta_ad_item_error", runId, customerId, vehicleId: item.vehicleId, error: adErr instanceof Error ? adErr.message : String(adErr) }));
+            // Continue with next item
+          }
+        }
+
+        // Store first creative/ad IDs (or use existing if we didn't create new ones)
+        const creativeId = createdCreativeIds[0] ?? existingObjects?.creativeId ?? null;
+        const adId = createdAdIds[0] ?? existingObjects?.adId ?? null;
+
+        if (creativeId) {
+          await upsertObjects({ creativeId, lastPublishStep: "creative", lastPublishError: null });
+        }
+        if (adId) {
+          await upsertObjects({ adId, lastPublishStep: "ad", lastPublishError: null });
+        }
+
+        // Update metadata with created ad IDs (merge with existing metadata)
+        const [currentRun] = await db
+          .select({ metadataJson: adRuns.metadataJson })
+          .from(adRuns)
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)))
+          .limit(1);
+        
+        const existingMeta = (currentRun?.metadataJson as Record<string, unknown>) || {};
+        const updatedMetadata = {
+          ...existingMeta,
+          createdAdIds,
+          createdCreativeIds,
+          // Keep existing projectedItems and qaGate, just add created IDs
         };
-
-        const creativeRes = (await metaPost(creativePath, accessToken, creativeBody)) as { id?: string };
-        if (!creativeRes.id) throw new Error("Ad creative creation failed: No ID returned");
-        const creativeId = creativeRes.id;
-        console.log(JSON.stringify({ event: "meta_creative_created", runId, customerId, creativeId }));
-
-        await upsertObjects({ creativeId, lastPublishStep: "creative", lastPublishError: null });
-
-        // Create Ad (PAUSED)
-        const adsPath = `/act_${actId}/ads`;
-        const adBody: Record<string, unknown> = {
-          name: "Project Auto - Test Ad",
-          adset_id: adsetId,
-          creative: { creative_id: creativeId },
-          status: "PAUSED",
-        };
-
-        const adRes = (await metaPost(adsPath, accessToken, adBody)) as { id?: string };
-        if (!adRes.id) throw new Error("Ad creation failed: No ID returned");
-        const adId = adRes.id;
-        console.log(JSON.stringify({ event: "meta_ad_created", runId, customerId, adId }));
-
-        await upsertObjects({ adId, lastPublishStep: "ad", lastPublishError: null });
+        
+        await db
+          .update(adRuns)
+          .set({ metadataJson: updatedMetadata })
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
 
         await db
           .update(adSettings)

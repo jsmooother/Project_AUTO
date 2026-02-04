@@ -325,6 +325,7 @@ export const inventoryItems = pgTable(
     status: text("status").notNull().default("active"),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    detailsJson: jsonb("details_json"),
   },
   (t) => [unique().on(t.customerId, t.inventorySourceId, t.externalId)]
 );
@@ -447,6 +448,7 @@ export const adRuns = pgTable("ad_runs", {
   startedAt: timestamp("started_at", { withTimezone: true }),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
   errorMessage: text("error_message"),
+  metadataJson: jsonb("metadata_json"), // Meta payload previews and diagnostics
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

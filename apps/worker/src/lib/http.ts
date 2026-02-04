@@ -51,6 +51,7 @@ export async function fetchWithTrace(
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": "RepoWorker/1.0" },
+      redirect: "follow", // Explicitly follow redirects
     });
     const fullBody = await res.text();
     clearTimeout(timeout);

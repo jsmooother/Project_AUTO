@@ -438,8 +438,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       // Call Meta Graph API: GET /me?fields=id,name
       const meData = (await fetchMeta("/me", accessToken, {
         fields: "id,name",
-        timeout: 10000,
-      })) as { id?: string; name?: string; error?: unknown };
+      }, { timeout: 10000 })) as { id?: string; name?: string; error?: unknown };
 
       if (!meData.id) {
         return reply.status(500).send({
@@ -454,8 +453,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       try {
         const adAccountsData = (await fetchMeta("/me/adaccounts", accessToken, {
           fields: "id,name,account_status,currency",
-          timeout: 10000,
-        })) as {
+        }, { timeout: 10000 })) as {
           data?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
           error?: unknown;
         };
@@ -558,8 +556,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       // Call Meta Graph API: GET /me/adaccounts?fields=id,name,account_status,currency
       const adAccountsData = (await fetchMeta("/me/adaccounts", accessToken, {
         fields: "id,name,account_status,currency",
-        timeout: 10000,
-      })) as {
+      }, { timeout: 10000 })) as {
         data?: Array<{ id: string; name?: string; account_status?: number; currency?: string }>;
         error?: unknown;
       };
@@ -650,8 +647,7 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       try {
         const adAccountsData = (await fetchMeta("/me/adaccounts", connection.accessToken, {
           fields: "id,name,account_status,currency",
-          timeout: 10000,
-        })) as {
+        }, { timeout: 10000 })) as {
           data?: Array<{ id: string }>;
           error?: unknown;
         };
