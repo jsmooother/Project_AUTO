@@ -464,11 +464,40 @@ export const adsBudgetPlans = pgTable(
     marginPercent: numeric("margin_percent", { precision: 5, scale: 2 }).notNull(),
     pacing: text("pacing").notNull().default("daily"), // 'daily' | 'lifetime'
     status: text("status").notNull().default("active"), // 'active' | 'paused'
+    billingMode: text("billing_mode").notNull().default("time_based"), // 'time_based' | 'impression_based'
+    customerCpmSek: numeric("customer_cpm_sek", { precision: 20, scale: 4 }),
+    leverMinMarginPercent: integer("lever_min_margin_percent").notNull().default(60),
+    leverMaxMarginPercent: integer("lever_max_margin_percent").notNull().default(80),
+    leverMinMetaRatio: numeric("lever_min_meta_ratio", { precision: 5, scale: 4 }).notNull().default("0.20"),
+    leverMaxMetaRatio: numeric("lever_max_meta_ratio", { precision: 5, scale: 4 }).notNull().default("0.40"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique().on(t.customerId)]
 );
+
+export const customerLedgerEntries = pgTable("customer_ledger_entries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id")
+    .notNull()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  type: text("type").notNull(), // 'topup' | 'consumption' | 'adjustment'
+  amountSek: numeric("amount_sek", { precision: 20, scale: 4 }).notNull(),
+  refType: text("ref_type"),
+  refId: text("ref_id"),
+  periodDate: timestamp("period_date", { withTimezone: true }), // DATE stored as timestamp for Drizzle
+  metaCampaignId: text("meta_campaign_id"),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const customerBalanceCache = pgTable("customer_balance_cache", {
+  customerId: uuid("customer_id")
+    .primaryKey()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  balanceSek: numeric("balance_sek", { precision: 20, scale: 4 }).notNull().default("0"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const metaAdObjects = pgTable(
   "meta_ad_objects",

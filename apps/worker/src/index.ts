@@ -9,6 +9,7 @@ import { processCrawlRealIvars } from "./jobs/crawlRealIvars.js";
 import { processPreviewGen } from "./jobs/previewGen.js";
 import { processAdsSync } from "./jobs/adsSync.js";
 import { processAdsPublish } from "./jobs/adsPublish.js";
+import { processBillingBurn } from "./jobs/billingBurn.js";
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {
@@ -56,6 +57,9 @@ workers.push(
 );
 workers.push(
   queue.createWorker(JOB_TYPES.ADS_PUBLISH, processAdsPublish)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.BILLING_BURN, processBillingBurn)
 );
 
 console.log(`[Worker] All workers started (${workers.length} total)`);

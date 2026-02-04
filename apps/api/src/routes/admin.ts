@@ -22,8 +22,11 @@ import {
   metaAdObjects,
   metaConnections,
   adsBudgetPlans,
+  customerLedgerEntries,
+  customerBalanceCache,
 } from "@repo/db/schema";
 import { z } from "zod";
+import { metaGet } from "../lib/metaGraph.js";
 
 const DEMO_PASSWORD = "demo-password";
 
@@ -50,6 +53,15 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+/** Compute balance from ledger (source of truth). */
+async function getBalanceFromLedger(customerId: string): Promise<number> {
+  const rows = await db
+    .select({ sum: sql<string>`COALESCE(SUM(${customerLedgerEntries.amountSek}), 0)` })
+    .from(customerLedgerEntries)
+    .where(eq(customerLedgerEntries.customerId, customerId));
+  return rows[0]?.sum != null ? parseFloat(String(rows[0].sum)) : 0;
 }
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
@@ -341,6 +353,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(onboardingStates.customerId, customerId))
       .limit(1);
 
+    const [budgetPlan] = await db
+      .select()
+      .from(adsBudgetPlans)
+      .where(eq(adsBudgetPlans.customerId, customerId))
+      .limit(1);
+
     return reply.send({
       customer,
       inventorySource: source ?? null,
@@ -355,6 +373,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         objects: metaObjects ?? null,
         connection: metaConnection ?? null,
         onboarding: onboarding ?? null,
+        budgetPlan: budgetPlan ?? null,
       },
     });
   });
@@ -548,7 +567,22 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // POST /admin/customers/:customerId/ads/budget - update ads budget plan (admin only)
-  app.post<{ Params: { customerId: string }; Body: { meta_monthly_cap?: number; margin_percent?: number; status?: "active" | "paused" } }>(
+  // Supports billing_mode, customer_cpm_sek, lever ranges; clamps margin and meta ratio within levers.
+  type BudgetBody = {
+    meta_monthly_cap?: number;
+    margin_percent?: number;
+    status?: "active" | "paused";
+    billing_mode?: "time_based" | "impression_based";
+    customer_cpm_sek?: number | null;
+    lever_min_margin_percent?: number;
+    lever_max_margin_percent?: number;
+    lever_min_meta_ratio?: number;
+    lever_max_meta_ratio?: number;
+  };
+  const CPM_SEK_MIN = 100;
+  const CPM_SEK_MAX = 400;
+
+  app.post<{ Params: { customerId: string }; Body: BudgetBody }>(
     "/admin/customers/:customerId/ads/budget",
     async (request, reply) => {
       const { customerId } = request.params;
@@ -566,15 +600,62 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      const updates: { metaMonthlyCap?: string; marginPercent?: string; status?: string; updatedAt: Date } = {
-        updatedAt: new Date(),
-      };
+      const customerPrice = Number(existing.customerMonthlyPrice);
+      const leverMinMargin = typeof body.lever_min_margin_percent === "number" ? body.lever_min_margin_percent : Number(existing.leverMinMarginPercent);
+      const leverMaxMargin = typeof body.lever_max_margin_percent === "number" ? body.lever_max_margin_percent : Number(existing.leverMaxMarginPercent);
+      const leverMinRatio = typeof body.lever_min_meta_ratio === "number" ? body.lever_min_meta_ratio : parseFloat(String(existing.leverMinMetaRatio));
+      const leverMaxRatio = typeof body.lever_max_meta_ratio === "number" ? body.lever_max_meta_ratio : parseFloat(String(existing.leverMaxMetaRatio));
+
+      const updates: {
+        metaMonthlyCap?: string;
+        marginPercent?: string;
+        status?: string;
+        billingMode?: string;
+        customerCpmSek?: string | null;
+        leverMinMarginPercent?: number;
+        leverMaxMarginPercent?: number;
+        leverMinMetaRatio?: string;
+        leverMaxMetaRatio?: string;
+        updatedAt: Date;
+      } = { updatedAt: new Date() };
+
+      if (body.billing_mode === "time_based" || body.billing_mode === "impression_based") {
+        updates.billingMode = body.billing_mode;
+        if (body.billing_mode === "time_based") {
+          updates.customerCpmSek = null;
+        }
+      }
+      if (body.billing_mode === "impression_based") {
+        const cpm = typeof body.customer_cpm_sek === "number" ? body.customer_cpm_sek : (existing.customerCpmSek != null ? Number(existing.customerCpmSek) : null);
+        if (cpm == null) {
+          return reply.status(400).send({
+            error: { code: "VALIDATION_ERROR", message: "customer_cpm_sek is required when billing_mode is impression_based" },
+          });
+        }
+        const clampedCpm = Math.max(CPM_SEK_MIN, Math.min(CPM_SEK_MAX, cpm));
+        updates.customerCpmSek = String(clampedCpm);
+      } else if (body.billing_mode === "time_based" && body.customer_cpm_sek === null) {
+        updates.customerCpmSek = null;
+      }
+      if (typeof body.customer_cpm_sek === "number" && body.billing_mode !== "time_based") {
+        updates.customerCpmSek = String(Math.max(CPM_SEK_MIN, Math.min(CPM_SEK_MAX, body.customer_cpm_sek)));
+      }
+      if (typeof body.lever_min_margin_percent === "number") updates.leverMinMarginPercent = body.lever_min_margin_percent;
+      if (typeof body.lever_max_margin_percent === "number") updates.leverMaxMarginPercent = body.lever_max_margin_percent;
+      if (typeof body.lever_min_meta_ratio === "number") updates.leverMinMetaRatio = String(body.lever_min_meta_ratio);
+      if (typeof body.lever_max_meta_ratio === "number") updates.leverMaxMetaRatio = String(body.lever_max_meta_ratio);
+
       if (typeof body.meta_monthly_cap === "number" && body.meta_monthly_cap >= 0) {
-        updates.metaMonthlyCap = String(body.meta_monthly_cap);
+        const ratio = customerPrice > 0 ? body.meta_monthly_cap / customerPrice : 0;
+        const clampedRatio = Math.max(leverMinRatio, Math.min(leverMaxRatio, ratio));
+        const metaMonthlyCap = Math.round(customerPrice * clampedRatio * 100) / 100;
+        updates.metaMonthlyCap = String(metaMonthlyCap);
       }
-      if (typeof body.margin_percent === "number" && body.margin_percent >= 0 && body.margin_percent <= 100) {
-        updates.marginPercent = String(body.margin_percent);
+      if (typeof body.margin_percent === "number") {
+        const marginPercent = Math.max(leverMinMargin, Math.min(leverMaxMargin, body.margin_percent));
+        updates.marginPercent = String(marginPercent);
       }
+
       if (body.status === "active" || body.status === "paused") {
         updates.status = body.status;
       }
@@ -595,9 +676,184 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         customer_monthly_price: Number(updated.customerMonthlyPrice),
         meta_monthly_cap: Number(updated.metaMonthlyCap),
         margin_percent: Number(updated.marginPercent),
+        billing_mode: updated.billingMode,
+        customer_cpm_sek: updated.customerCpmSek != null ? Number(updated.customerCpmSek) : null,
+        lever_min_margin_percent: updated.leverMinMarginPercent,
+        lever_max_margin_percent: updated.leverMaxMarginPercent,
+        lever_min_meta_ratio: Number(updated.leverMinMetaRatio),
+        lever_max_meta_ratio: Number(updated.leverMaxMetaRatio),
         pacing: updated.pacing,
         status: updated.status,
       });
+    }
+  );
+
+  // POST /admin/customers/:customerId/billing/topup - add credits (admin)
+  app.post<{ Params: { customerId: string }; Body: { amountSek?: number; note?: string } }>(
+    "/admin/customers/:customerId/billing/topup",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const body = (request.body ?? {}) as { amountSek?: number; note?: string };
+      const amountSek = typeof body.amountSek === "number" ? body.amountSek : 0;
+      if (amountSek <= 0 || amountSek > 200000) {
+        return reply.status(400).send({
+          error: { code: "VALIDATION_ERROR", message: "amountSek must be > 0 and <= 200000" },
+        });
+      }
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Customer not found" } });
+      }
+      const now = new Date();
+      await db.insert(customerLedgerEntries).values({
+        customerId,
+        type: "topup",
+        amountSek: String(amountSek),
+        refType: "admin",
+        note: body.note ?? "Admin top-up",
+        createdAt: now,
+      });
+      const newBalance = await getBalanceFromLedger(customerId);
+      await db
+        .insert(customerBalanceCache)
+        .values({ customerId, balanceSek: String(newBalance), updatedAt: now })
+        .onConflictDoUpdate({
+          target: customerBalanceCache.customerId,
+          set: { balanceSek: String(newBalance), updatedAt: now },
+        });
+      return reply.send({ ok: true, balanceSek: newBalance });
+    }
+  );
+
+  // GET /admin/customers/:customerId/billing/ledger - latest entries + computed balance
+  app.get<{ Params: { customerId: string }; Querystring: { limit?: string } }>(
+    "/admin/customers/:customerId/billing/ledger",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const limit = Math.min(parseInt(request.query.limit ?? "50", 10) || 50, 200);
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Customer not found" } });
+      }
+      const entries = await db
+        .select({
+          id: customerLedgerEntries.id,
+          type: customerLedgerEntries.type,
+          amountSek: customerLedgerEntries.amountSek,
+          refType: customerLedgerEntries.refType,
+          refId: customerLedgerEntries.refId,
+          periodDate: customerLedgerEntries.periodDate,
+          metaCampaignId: customerLedgerEntries.metaCampaignId,
+          note: customerLedgerEntries.note,
+          createdAt: customerLedgerEntries.createdAt,
+        })
+        .from(customerLedgerEntries)
+        .where(eq(customerLedgerEntries.customerId, customerId))
+        .orderBy(desc(customerLedgerEntries.createdAt))
+        .limit(limit);
+      const balanceSek = await getBalanceFromLedger(customerId);
+      return reply.send({
+        entries: entries.map((e) => ({
+          id: e.id,
+          type: e.type,
+          amountSek: Number(e.amountSek),
+          refType: e.refType ?? undefined,
+          refId: e.refId ?? undefined,
+          periodDate: e.periodDate ? new Date(e.periodDate).toISOString().slice(0, 10) : undefined,
+          metaCampaignId: e.metaCampaignId ?? undefined,
+          note: e.note ?? undefined,
+          createdAt: e.createdAt,
+        })),
+        balanceSek,
+      });
+    }
+  );
+
+  // POST /admin/customers/:customerId/billing/burn - trigger billing burn for a date (enqueue BILLING_BURN)
+  // Body: { periodDate?: "YYYY-MM-DD" } or query ?date=YYYY-MM-DD. Defaults to today.
+  app.post<{
+    Params: { customerId: string };
+    Querystring: { date?: string };
+    Body: { periodDate?: string };
+  }>("/admin/customers/:customerId/billing/burn", async (request, reply) => {
+    const { customerId } = request.params;
+    const body = (request.body ?? {}) as { periodDate?: string };
+    const dateParam = body.periodDate ?? request.query.date;
+    const periodDate =
+      dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : new Date().toISOString().slice(0, 10);
+    const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+    if (!customer) {
+      return reply.status(404).send({ error: { code: "NOT_FOUND", message: "Customer not found" } });
+    }
+    const jobId = await queue.enqueue({
+      jobType: JOB_TYPES.BILLING_BURN,
+      payload: { customerId, preset: "daily", periodDate },
+      correlation: { customerId },
+    });
+    return reply.status(202).send({ ok: true, jobId, periodDate });
+  });
+
+  // GET /admin/customers/:customerId/performance/spend - Meta spend (admin only)
+  app.get<{ Params: { customerId: string }; Querystring: { since?: string; until?: string } }>(
+    "/admin/customers/:customerId/performance/spend",
+    async (request, reply) => {
+      const { customerId } = request.params;
+      const since = request.query.since ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const until = request.query.until ?? new Date().toISOString().slice(0, 10);
+      const [metaConn] = await db
+        .select()
+        .from(metaConnections)
+        .where(and(eq(metaConnections.customerId, customerId), eq(metaConnections.status, "connected")))
+        .limit(1);
+      const [objects] = await db.select().from(metaAdObjects).where(eq(metaAdObjects.customerId, customerId)).limit(1);
+      if (!metaConn?.accessToken || !objects?.campaignId) {
+        return reply.status(200).send({
+          since,
+          until,
+          spend: 0,
+          spendSek: 0,
+          currency: "SEK",
+          insights: [],
+          hint: "Meta not connected or no campaign. Connect Meta and publish to see spend.",
+        });
+      }
+      try {
+        const params: Record<string, string> = {
+          fields: "impressions,reach,clicks,ctr,spend",
+          "time_range[since]": String(since),
+          "time_range[until]": String(until),
+          time_increment: "1",
+        };
+        const response = (await metaGet(`/${objects.campaignId}/insights`, metaConn.accessToken, params)) as {
+          data?: Array<Record<string, unknown>>;
+        };
+        const data = (response.data || []) as Array<Record<string, unknown>>;
+        let totalSpend = 0;
+        const insights = data.map((d) => {
+          const spend = parseFloat(String(d.spend ?? 0)) || 0;
+          totalSpend += spend;
+          return {
+            date_start: d.date_start,
+            impressions: parseInt(String(d.impressions ?? 0), 10),
+            clicks: parseInt(String(d.clicks ?? 0), 10),
+            spend,
+          };
+        });
+        const spendRounded = Math.round(totalSpend * 100) / 100;
+        return reply.send({
+          since,
+          until,
+          spend: spendRounded,
+          spendSek: spendRounded,
+          currency: "SEK",
+          insights,
+        });
+      } catch (err) {
+        request.log.error(err);
+        return reply.status(500).send({
+          error: { code: "META_API_ERROR", message: err instanceof Error ? err.message : String(err) },
+        });
+      }
     }
   );
 

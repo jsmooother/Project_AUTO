@@ -14,6 +14,7 @@ export const JOB_TYPES = {
   TEMPLATE_RENDER_PREVIEW: "TEMPLATE_RENDER_PREVIEW",
   ADS_SYNC: "ADS_SYNC",
   ADS_PUBLISH: "ADS_PUBLISH",
+  BILLING_BURN: "BILLING_BURN",
 } as const;
 
 export type JobType = (typeof JOB_TYPES)[keyof typeof JOB_TYPES];

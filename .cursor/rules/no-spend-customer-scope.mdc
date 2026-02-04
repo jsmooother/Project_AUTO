@@ -1,0 +1,26 @@
+---
+description: No Meta spend in customer scope — customer API and UI must never expose spend-like fields
+globs: apps/api/src/routes/**/*.ts,apps/web/src/app/**/*.tsx
+alwaysApply: false
+---
+
+# No Meta Spend in Customer Scope
+
+## Rule
+
+- **Customer endpoints** must never return spend-like fields: `spend`, `CPC`, `CPM`, `cost_per_*`, or any Meta cost/currency fields.
+- **Customer UI** may only show:
+  - Credits remaining (balance)
+  - Credits used (consumption from ledger)
+  - Delivery metrics: impressions, clicks, CTR, reach
+
+## Allowed in customer scope
+
+- `balanceSek`, `creditsConsumedSek*`, `monthlyPriceSek`, `customerCpmSek` (CPM is the customer’s agreed rate, not Meta cost)
+- `impressions`, `clicks`, `ctr`, `reach`
+- `billingMode`, `status`, `deliverySummary`
+
+## Admin-only
+
+- Meta spend, spend-derived metrics, and margin (revenue − spend) are exposed only via admin routes (e.g. `GET /admin/customers/:id/performance/spend`).
+- Performance routes used by customers (`GET /performance/summary`) must request Meta insights with fields like `impressions,reach,clicks,ctr` only — never `spend`.

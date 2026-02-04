@@ -41,6 +41,38 @@ function mapMetaError(error: { message?: string; type?: string; code?: number; e
 }
 
 /**
+ * GET request to Meta Graph API (e.g. insights).
+ */
+export async function metaGet(
+  path: string,
+  token: string,
+  params?: Record<string, string>,
+  options?: { timeout?: number }
+): Promise<unknown> {
+  const timeout = options?.timeout ?? DEFAULT_TIMEOUT_MS;
+  const baseUrl = getBaseUrl();
+  const url = new URL(`${baseUrl}${path}`);
+  url.searchParams.set("access_token", token);
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+  }
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("Request timeout")), timeout);
+  });
+  const response = await Promise.race([
+    fetch(url.toString(), { headers: { "User-Agent": "Project-AUTO/1.0" } }),
+    timeoutPromise,
+  ]);
+  const data = (await response.json()) as { error?: { message: string; type: string; code: number }; [key: string]: unknown };
+  if (!response.ok || data.error) {
+    throw mapMetaError(data.error, `Meta API error: ${response.status}`);
+  }
+  return data;
+}
+
+/**
  * POST request to Meta Graph API.
  * @param path - Graph API path (e.g., "/act_123456789/campaigns")
  * @param token - Access token
