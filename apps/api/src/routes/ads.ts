@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, inArray } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { queue } from "../lib/queue.js";
 import { JOB_TYPES } from "@repo/queue";
@@ -324,7 +324,7 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       .where(
         and(
           eq(adRuns.customerId, customerId),
-          eq(adRuns.status, "queued"),
+          inArray(adRuns.status, ["queued", "running"]),
           gte(adRuns.createdAt, dedupeSince)
         )
       )
@@ -372,7 +372,7 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       .where(
         and(
           eq(adRuns.customerId, customerId),
-          eq(adRuns.status, "queued"),
+          inArray(adRuns.status, ["queued", "running"]),
           gte(adRuns.createdAt, dedupeSince)
         )
       )

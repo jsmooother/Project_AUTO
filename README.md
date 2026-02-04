@@ -120,6 +120,7 @@ Copy `.env.example` to `.env` and adjust as needed. The example includes default
 - `ALLOW_INSECURE_ADMIN=true` - In dev, skip `x-admin-key` for Admin API
 - `NEXT_PUBLIC_SHOW_ADMIN_LINK=true` - Show Admin link in user dashboard
 - `ADMIN_API_KEY` - Required in production for Admin API
+- `CORS_ORIGIN` - Comma-separated list of allowed origins for CORS (e.g., `http://localhost:3000,https://app.projectauto.com`). In development, if not set, all origins are allowed. In production, if not set, CORS is disabled for security.
 
 ## Auth & Web App
 

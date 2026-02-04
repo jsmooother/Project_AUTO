@@ -20,7 +20,33 @@ import { adsRoutes } from "./routes/ads.js";
 
 const app = Fastify({ logger: true });
 
-await app.register(cors, { origin: true, credentials: true });
+// CORS configuration: allowlist in production, open in development
+const corsOriginRaw = process.env["CORS_ORIGIN"];
+const corsOriginList = corsOriginRaw
+  ? corsOriginRaw
+      .split(",")
+      .map((o) => o.trim())
+      .filter(Boolean)
+  : [];
+const isProduction = process.env["NODE_ENV"] === "production";
+
+let corsOrigin: boolean | string[] | ((origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => void);
+if (corsOriginList.length > 0) {
+  // Use allowlist array: @fastify/cors will check if Origin header is in list
+  // Note: server-to-server requests (no Origin) are allowed by default
+  corsOrigin = corsOriginList;
+} else if (isProduction) {
+  // Production without CORS_ORIGIN: deny by default (secure)
+  corsOrigin = false;
+  app.log.warn(
+    "CORS_ORIGIN is not set in production. CORS is disabled. Set CORS_ORIGIN to a comma-separated list of allowed origins (e.g., https://app.projectauto.com) to enable CORS."
+  );
+} else {
+  // Development: allow all origins (dev-friendly)
+  corsOrigin = true;
+}
+
+await app.register(cors, { origin: corsOrigin, credentials: true });
 const cookieSecret = process.env["COOKIE_SECRET"] ?? "dev-secret-change-in-production";
 await app.register(cookie, { secret: cookieSecret });
 if (!process.env["COOKIE_SECRET"]) {
