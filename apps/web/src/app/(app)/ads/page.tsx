@@ -29,6 +29,8 @@ import {
   Clock,
   ExternalLink,
   Copy,
+  Settings,
+  Activity,
 } from "lucide-react";
 
 // Meta icon component
@@ -1115,6 +1117,76 @@ function AdsContent() {
                 </>
               )}
             </div>
+          </div>
+          {/* Quick actions: Setup, Campaign, Diagnostics */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "1rem",
+              flexWrap: "wrap",
+              paddingTop: "1rem",
+              marginTop: "1rem",
+              borderTop: "1px solid var(--pa-border)",
+            }}
+          >
+            <Link
+              href="/ads/setup"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                color: "var(--pa-dark)",
+                textDecoration: "none",
+              }}
+            >
+              <Settings size={16} />
+              Setup
+            </Link>
+            <Link
+              href="/ads/campaign"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                color: "var(--pa-dark)",
+                textDecoration: "none",
+              }}
+            >
+              <PlayCircle size={16} />
+              Campaign
+            </Link>
+            <Link
+              href="/ads/diagnostics"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                padding: "0.5rem 1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                fontSize: "0.875rem",
+                fontWeight: 500,
+                color: "var(--pa-dark)",
+                textDecoration: "none",
+              }}
+            >
+              <Activity size={16} />
+              Diagnostics
+            </Link>
           </div>
         </div>
 

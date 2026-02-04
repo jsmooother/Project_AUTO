@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { ExternalLink, Copy } from "lucide-react";
+import { ExternalLink, Copy, Activity } from "lucide-react";
 
 function CampaignContent() {
   const { auth } = useAuth();
@@ -216,6 +217,29 @@ function CampaignContent() {
               </div>
             ))}
           </div>
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <Link
+              href="/ads/diagnostics"
+              className="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium text-sm"
+            >
+              <Activity size={16} />
+              View diagnostics
+            </Link>
+          </div>
+        </div>
+      )}
+      {/* View diagnostics (when no runs yet) */}
+      {lastRuns.length === 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Recent Runs</h2>
+          <p className="text-gray-500 text-sm mb-4">No ad runs yet. Publish from the Ads page to see run history here and in Diagnostics.</p>
+          <Link
+            href="/ads/diagnostics"
+            className="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium text-sm"
+          >
+            <Activity size={16} />
+            View diagnostics
+          </Link>
         </div>
       )}
     </div>
