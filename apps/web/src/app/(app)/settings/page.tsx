@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { PageHeader, Banner } from "@/components/ui";
 import { User, Globe, AlertTriangle, CheckCircle2, Bell, Loader2 } from "lucide-react";
 
 function MetaIcon({ size = 20 }: { size?: number }) {
@@ -341,21 +342,7 @@ function SettingsPage() {
 
   return (
     <div style={{ maxWidth: 896, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <h1
-          style={{
-            fontSize: "1.875rem",
-            fontWeight: 600,
-            letterSpacing: "-0.025em",
-            marginBottom: "0.5rem",
-            color: "var(--pa-dark)",
-          }}
-        >
-          Settings
-        </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>Manage your account and connected services</p>
-      </div>
+      <PageHeader title="Settings" description="Manage your account and connected services" />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         {/* Account Information */}
@@ -579,35 +566,18 @@ function SettingsPage() {
               </Link>
             </div>
           )}
-          <div
-            style={{
-              padding: "1rem",
-              background: "#fef9c3",
-              border: "1px solid #fde047",
-              borderRadius: "var(--pa-radius)",
-            }}
-          >
-            <p style={{ fontSize: "0.875rem", color: "#854d0e" }}>
+          <div style={{ marginTop: "1rem" }}>
+            <Banner variant="warning">
               <strong>MVP limitation:</strong> Only one website source supported. Multiple sources coming in v2.
-            </p>
+            </Banner>
           </div>
         </CardSection>
 
         {/* Connected Meta Account */}
         <CardSection icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>} iconBg="#dbeafe" iconColor="#2563eb" title="Connected Meta account" description="Your Meta (Facebook/Instagram) advertising platform">
           {metaError && (
-            <div
-              style={{
-                padding: "0.75rem",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
-                borderRadius: "var(--pa-radius)",
-                marginBottom: "1rem",
-                fontSize: "0.875rem",
-                color: "#991b1b",
-              }}
-            >
-              {metaError}
+            <div style={{ marginBottom: "1rem" }}>
+              <ErrorBanner message={metaError} />
             </div>
           )}
           {metaConnection?.status === "connected" && (
@@ -953,18 +923,10 @@ function SettingsPage() {
               )}
             </div>
           )}
-          <div
-            style={{
-              marginTop: "1rem",
-              padding: "1rem",
-              background: "#fef9c3",
-              border: "1px solid #fde047",
-              borderRadius: "var(--pa-radius)",
-            }}
-          >
-            <p style={{ fontSize: "0.875rem", color: "#854d0e" }}>
+          <div style={{ marginTop: "1rem" }}>
+            <Banner variant="warning">
               <strong>MVP limitation:</strong> Only Meta Ads supported. Google Ads, TikTok, and other platforms coming in v2.
-            </p>
+            </Banner>
           </div>
         </CardSection>
 
