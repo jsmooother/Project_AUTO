@@ -9,7 +9,7 @@ import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { useI18n } from "@/lib/i18n/context";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { Globe } from "lucide-react";
+import { Globe, Shield } from "lucide-react";
 
 export default function OnboardingInventoryPage() {
   const { auth } = useAuth();
@@ -76,9 +76,28 @@ export default function OnboardingInventoryPage() {
       <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--pa-dark)" }}>
         {t.onboarding.inventoryTitle}
       </h1>
-      <p style={{ fontSize: "1rem", color: "var(--pa-gray)", marginBottom: "1.5rem" }}>
+      <p style={{ fontSize: "1rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
         {t.onboarding.inventoryDescription}
       </p>
+
+      {/* Trust/reassurance banner */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          padding: "0.75rem 1rem",
+          background: "#ecfdf5",
+          border: "1px solid #a7f3d0",
+          borderRadius: "var(--pa-radius)",
+          marginBottom: "1rem",
+        }}
+      >
+        <Shield size={20} color="#059669" />
+        <p style={{ fontSize: "0.875rem", color: "#065f46", margin: 0 }}>
+          {t.onboarding.inventoryReassurance}
+        </p>
+      </div>
 
       <div style={{ marginBottom: "1rem" }}>
         <label htmlFor="websiteUrl" style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: 4 }}>
@@ -112,7 +131,7 @@ export default function OnboardingInventoryPage() {
               fontSize: "0.875rem",
             }}
           >
-            {submitLoading ? t.common.loading : "Save"}
+            {submitLoading ? t.common.loading : t.common.save}
           </button>
         </form>
       </div>
@@ -127,21 +146,36 @@ export default function OnboardingInventoryPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "0.5rem",
-              padding: "0.5rem 1rem",
-              border: "1px solid var(--pa-border)",
+              padding: "0.75rem 1.25rem",
+              border: "none",
               borderRadius: 6,
-              background: "white",
+              background: crawlLoading ? "#d1d5db" : "var(--pa-dark)",
+              color: "white",
               cursor: crawlLoading ? "not-allowed" : "pointer",
               fontSize: "0.875rem",
+              fontWeight: 500,
             }}
           >
             <Globe size={16} />
             {crawlLoading ? t.onboarding.crawlStarting : t.onboarding.runCrawl}
           </button>
+          <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginTop: "0.5rem" }}>
+            {t.onboarding.runCrawlHelper}
+          </p>
           {inventoryCount > 0 && (
-            <span style={{ marginLeft: "0.75rem", fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-              {inventoryCount} {t.onboarding.itemsDetected}
-            </span>
+            <div
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.75rem 1rem",
+                background: "#ecfdf5",
+                border: "1px solid #a7f3d0",
+                borderRadius: "var(--pa-radius)",
+              }}
+            >
+              <p style={{ fontSize: "0.875rem", color: "#065f46", fontWeight: 500, margin: 0 }}>
+                ✓ {inventoryCount} {t.onboarding.itemsDetected}
+              </p>
+            </div>
           )}
         </div>
       )}
