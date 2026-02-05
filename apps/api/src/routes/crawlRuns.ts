@@ -64,13 +64,30 @@ export async function crawlRunsRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const runId = String(run.id);
+      
+      // Extract domain from website URL for site identifier
+      let site = "unknown";
+      try {
+        const url = new URL(source.websiteUrl);
+        site = url.hostname.replace(/^www\./, ""); // Remove www. prefix if present
+      } catch {
+        // If URL parsing fails, use a default
+        site = "unknown";
+      }
+      
+      // Use live crawl with 10 item limit for testing
       const jobId = await queue.enqueue({
-        jobType: JOB_TYPES.CRAWL,
-        payload: { inventorySourceId: source.id },
+        jobType: JOB_TYPES.CRAWL_REAL,
+        payload: {
+          customerId, // Required by CrawlRealPayload interface
+          headUrl: source.websiteUrl,
+          limit: 10, // Limit to 10 items for speed in testing
+          site: site,
+        },
         correlation: { customerId, runId },
       });
 
-      request.log.info({ runId, customerId, jobId, jobType: "crawl", event: "enqueue" });
+      request.log.info({ runId, customerId, jobId, jobType: "crawl_real", event: "enqueue", limit: 10 });
       return reply.status(201).send({ runId, jobId });
     } catch (err) {
       request.log.error(err);

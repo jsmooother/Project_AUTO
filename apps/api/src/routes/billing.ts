@@ -9,6 +9,7 @@ import {
   metaAdObjects,
 } from "@repo/db/schema";
 import { metaGet, type MetaGraphError } from "../lib/metaGraph.js";
+import { getEffectiveMetaAccessToken } from "../lib/metaAuth.js";
 
 /** Get date range for preset */
 function getUsagePeriod(preset: "last_7_days" | "last_30_days"): { since: string; until: string } {
@@ -68,7 +69,8 @@ async function getDeliveryMetrics(
     .from(metaAdObjects)
     .where(eq(metaAdObjects.customerId, customerId))
     .limit(1);
-  if (!metaConn?.accessToken || !objects?.campaignId) {
+  const { token: effectiveToken } = await getEffectiveMetaAccessToken(customerId);
+  if (!effectiveToken || !objects?.campaignId) {
     return { impressions: 0, clicks: 0, ctr: 0, reach: 0 };
   }
   try {
@@ -78,7 +80,7 @@ async function getDeliveryMetrics(
       "time_range[until]": until,
       time_increment: "1",
     };
-    const response = (await metaGet(`/${objects.campaignId}/insights`, metaConn.accessToken, params)) as {
+    const response = (await metaGet(`/${objects.campaignId}/insights`, effectiveToken, params)) as {
       data?: Array<Record<string, unknown>>;
     };
     const data = (response.data || []) as Array<Record<string, unknown>>;

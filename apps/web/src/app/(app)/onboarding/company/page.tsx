@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/api";
@@ -13,20 +13,38 @@ export default function CompanyOnboardingPage() {
   const [companyWebsite, setCompanyWebsite] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorHint, setErrorHint] = useState<string | null>(null);
+  const [isPreFilled, setIsPreFilled] = useState(false);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
+
+  // Pre-fill company website from signup suggestion
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const suggested = sessionStorage.getItem("suggestedCompanyWebsite");
+      if (suggested) {
+        setCompanyWebsite(suggested);
+        setIsPreFilled(true);
+        sessionStorage.removeItem("suggestedCompanyWebsite"); // Clear after reading
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerId) return;
     setLoading(true);
     setError(null);
+    setErrorHint(null);
     const body: { companyName: string; companyWebsite?: string } = { companyName };
     if (companyWebsite) body.companyWebsite = companyWebsite;
     const res = await apiPost("/onboarding/company", body, { customerId });
     setLoading(false);
     if (res.ok) router.push("/dashboard");
-    else setError(res.error);
+    else {
+      setError(res.error);
+      setErrorHint(res.errorDetail?.hint ?? null);
+    }
   };
 
   if (auth.status !== "authenticated") return null;
@@ -35,7 +53,7 @@ export default function CompanyOnboardingPage() {
     <>
       <h1 style={{ marginBottom: "1rem" }}>Company Information</h1>
       <p style={{ marginBottom: "1rem", color: "#666" }}>Tell us about your company</p>
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} hint={errorHint ?? undefined} />}
       <form
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "500px" }}
@@ -59,12 +77,25 @@ export default function CompanyOnboardingPage() {
           </label>
           <input
             id="companyWebsite"
-            type="url"
+            type="text"
             value={companyWebsite}
-            onChange={(e) => setCompanyWebsite(e.target.value)}
-            placeholder="https://example.com"
+            onChange={(e) => {
+              setCompanyWebsite(e.target.value);
+              setIsPreFilled(false); // Clear pre-filled flag when user edits
+            }}
+            placeholder="example.com or https://example.com"
             style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
           />
+          {isPreFilled && (
+            <p style={{ marginTop: "0.25rem", fontSize: "0.875rem", color: "#1e40af", fontStyle: "italic" }}>
+              ✓ Pre-filled from your email domain - we'll validate and connect it automatically
+            </p>
+          )}
+          {!isPreFilled && (
+            <p style={{ marginTop: "0.25rem", fontSize: "0.875rem", color: "#666" }}>
+              You can enter short URLs like "ivarsbil.se" - we'll validate and format it automatically
+            </p>
+          )}
         </div>
         <div style={{ display: "flex", gap: "1rem" }}>
           <button

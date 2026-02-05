@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { metaConnections, metaAdObjects } from "@repo/db/schema";
 import { metaGet, type MetaGraphError } from "../lib/metaGraph.js";
+import { getEffectiveMetaAccessToken } from "../lib/metaAuth.js";
 
 /**
  * Calculate date range from preset
@@ -162,10 +163,17 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
       .from(metaAdObjects)
       .where(eq(metaAdObjects.customerId, customerId))
       .limit(1);
-    
-    // Determine mode
-    const isSim = allowDevMeta && (!metaConn?.accessToken || metaConn.accessToken === "dev-token-placeholder");
-    const isReal = metaConn?.status === "connected" && metaConn.accessToken && metaConn.selectedAdAccountId && objects?.campaignId;
+
+    const { token: effectiveToken, mode: tokenMode } = await getEffectiveMetaAccessToken(customerId);
+
+    // Determine mode: sim = dev placeholder; real = system/test token + connection + campaign
+    const isSim = allowDevMeta && tokenMode === "dev";
+    const isReal =
+      !!effectiveToken &&
+      tokenMode !== "none" &&
+      metaConn?.status === "connected" &&
+      !!metaConn?.selectedAdAccountId &&
+      !!objects?.campaignId;
     
     // Check prerequisites
     if (!metaConn) {
@@ -248,11 +256,10 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
     }
     
     try {
-      const accessToken = metaConn.accessToken;
-      if (!accessToken) {
+      if (!effectiveToken) {
         throw new Error("Access token missing");
       }
-      const insights = await fetchMetaInsights(objects.campaignId, accessToken, preset);
+      const insights = await fetchMetaInsights(objects.campaignId, effectiveToken, preset);
       
       const dateRange = getDateRange(preset);
       
@@ -328,9 +335,11 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
         .from(metaAdObjects)
         .where(eq(metaAdObjects.customerId, customerId))
         .limit(1);
-      
-      // Check prerequisites
-      if (!metaConn || metaConn.status !== "connected" || !metaConn.accessToken || !metaConn.selectedAdAccountId) {
+
+      const { token: effectiveToken, mode: tokenMode } = await getEffectiveMetaAccessToken(customerId);
+
+      // Check prerequisites: connection + selected ad account + effective token (or sim)
+      if (!metaConn || metaConn.status !== "connected" || !metaConn.selectedAdAccountId) {
         return reply.status(400).send({
           error: {
             code: "MISSING_PREREQUISITE",
@@ -339,7 +348,7 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       }
-      
+
       // Determine object ID based on level
       let objectId: string | null = null;
       if (level === "campaign" && objects?.campaignId) {
@@ -349,7 +358,7 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
       } else if (level === "ad" && objects?.adId) {
         objectId = objects.adId;
       }
-      
+
       if (!objectId) {
         return reply.status(400).send({
           error: {
@@ -359,10 +368,9 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
           },
         });
       }
-      
-      // Check if placeholder (sim mode)
-      const isSim = allowDevMeta && (metaConn.accessToken === "dev-token-placeholder" || objectId.startsWith("dev-"));
-      
+
+      const isSim = allowDevMeta && (tokenMode === "dev" || objectId.startsWith("dev-"));
+
       if (isSim) {
         const synthetic = generateSyntheticMetrics(preset);
         return reply.status(200).send({
@@ -374,14 +382,20 @@ export async function performanceRoutes(app: FastifyInstance): Promise<void> {
           hint: "Dev/sim mode — showing synthetic metrics.",
         });
       }
-      
+
+      if (!effectiveToken || tokenMode === "none") {
+        return reply.status(400).send({
+          error: {
+            code: "MISSING_PREREQUISITE",
+            message: "Meta system user token not configured",
+            hint: "Configure META_SYSTEM_USER_ACCESS_TOKEN and grant partner access in Settings → Meta.",
+          },
+        });
+      }
+
       // Real mode: fetch from Meta
       try {
-        const accessToken = metaConn.accessToken;
-        if (!accessToken) {
-          throw new Error("Access token missing");
-        }
-        const insights = await fetchMetaInsights(objectId, accessToken, preset);
+        const insights = await fetchMetaInsights(objectId, effectiveToken, preset);
         const dateRange = getDateRange(preset);
         
         return reply.status(200).send({

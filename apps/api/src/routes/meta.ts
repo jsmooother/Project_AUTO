@@ -5,12 +5,22 @@ import { db } from "../lib/db.js";
 import { metaConnections, sessions } from "@repo/db/schema";
 import { signOAuthState, verifyOAuthState } from "../lib/metaOAuth.js";
 import { fetchMeta, type MetaGraphError } from "../lib/metaGraph.js";
+import { getEffectiveMetaAccessToken, getSystemUserAccessToken } from "../lib/metaAuth.js";
+import { resolveEffectiveAdAccountId, maskAdAccountId } from "../lib/metaAdAccount.js";
 
 function getWebUrl(): string {
   return process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000";
 }
 
 const devConnectBody = z.object({
+  metaUserId: z.string().optional(),
+  adAccountId: z.string().optional(),
+  scopes: z.array(z.string()).optional(),
+});
+
+const sandboxConnectBody = z.object({
+  customerId: z.string().uuid("customerId must be a valid UUID"),
+  accessToken: z.string().min(1, "Access token is required"),
   metaUserId: z.string().optional(),
   adAccountId: z.string().optional(),
   scopes: z.array(z.string()).optional(),
@@ -27,6 +37,11 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(metaConnections.customerId, customerId))
       .limit(1);
 
+    const systemUserConfigured = !!getSystemUserAccessToken();
+    const metaPartnerName = process.env["META_PARTNER_NAME"] ?? "Project Auto";
+    const rawBmId = process.env["META_BUSINESS_MANAGER_ID"];
+    const metaBusinessManagerId = rawBmId ? (rawBmId.length > 8 ? `****${rawBmId.slice(-4)}` : "****") : null;
+
     if (!connection) {
       return reply.send({
         status: "disconnected",
@@ -34,6 +49,12 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
         adAccountId: null,
         scopes: null,
         selectedAdAccountId: null,
+        partnerAccessStatus: "pending",
+        partnerAccessCheckedAt: null,
+        partnerAccessError: null,
+        systemUserConfigured,
+        metaPartnerName,
+        metaBusinessManagerId,
       });
     }
 
@@ -44,6 +65,118 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       scopes: connection.scopes ?? null,
       tokenExpiresAt: connection.tokenExpiresAt?.toISOString() ?? null,
       selectedAdAccountId: connection.selectedAdAccountId ?? null,
+      partnerAccessStatus: connection.partnerAccessStatus ?? "pending",
+      partnerAccessCheckedAt: connection.partnerAccessCheckedAt?.toISOString() ?? null,
+      partnerAccessError: connection.partnerAccessError ?? null,
+      systemUserConfigured,
+      metaPartnerName,
+      metaBusinessManagerId,
+    });
+  });
+
+  // GET /meta/permissions/check - verify system user can access customer's selected ad account
+  app.get("/meta/permissions/check", async (request, reply) => {
+    const customerId = request.customer.customerId;
+    const now = new Date();
+
+    const [connection] = await db
+      .select({
+        selectedAdAccountId: metaConnections.selectedAdAccountId,
+      })
+      .from(metaConnections)
+      .where(eq(metaConnections.customerId, customerId))
+      .limit(1);
+
+    const selectedAdAccountId = connection?.selectedAdAccountId ?? null;
+    const { effectiveId: adAccountId } = resolveEffectiveAdAccountId({
+      customerId,
+      selectedAdAccountId,
+    });
+
+    if (!adAccountId) {
+      return reply.send({
+        ok: false,
+        status: "missing_ad_account",
+        hint: "Select an ad account in Settings.",
+      });
+    }
+
+    const { token, mode } = await getEffectiveMetaAccessToken(customerId);
+    if (!token || mode === "none") {
+      return reply.send({
+        ok: false,
+        status: "not_configured",
+        hint: "Meta system user token not configured on server.",
+        debug: { adAccountIdMasked: maskAdAccountId(adAccountId), mode },
+      });
+    }
+
+    try {
+      const path = `/${adAccountId}`;
+      const data = (await fetchMeta(path, token, {
+        fields: "id,name,account_status,currency",
+      })) as { id?: string; name?: string; account_status?: number; currency?: string };
+
+      if (data?.id) {
+        await db
+          .update(metaConnections)
+          .set({
+            partnerAccessStatus: "verified",
+            partnerAccessCheckedAt: now,
+            partnerAccessError: null,
+            updatedAt: now,
+          })
+          .where(eq(metaConnections.customerId, customerId));
+
+        return reply.send({
+          ok: true,
+          status: "verified",
+          checkedAt: now.toISOString(),
+          debug: { adAccountIdMasked: maskAdAccountId(adAccountId), mode },
+        });
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const hint =
+        err && typeof err === "object" && "hint" in err && typeof (err as { hint: string }).hint === "string"
+          ? (err as { hint: string }).hint
+          : "Add Project Auto as a partner to your Meta Business Manager and grant access to this ad account.";
+
+      await db
+        .update(metaConnections)
+        .set({
+          partnerAccessStatus: "failed",
+          partnerAccessCheckedAt: now,
+          partnerAccessError: message.slice(0, 500),
+          updatedAt: now,
+        })
+        .where(eq(metaConnections.customerId, customerId));
+
+      return reply.send({
+        ok: false,
+        status: "failed",
+        hint,
+        checkedAt: now.toISOString(),
+        debug: { adAccountIdMasked: maskAdAccountId(adAccountId), mode },
+      });
+    }
+
+    await db
+      .update(metaConnections)
+      .set({
+        partnerAccessStatus: "pending",
+        partnerAccessCheckedAt: now,
+        partnerAccessError: "Unexpected response",
+        updatedAt: now,
+      })
+      .where(eq(metaConnections.customerId, customerId));
+
+    return reply.send({
+      ok: false,
+      status: "pending",
+      hint: "Could not verify access. Try again.",
+      checkedAt: now.toISOString(),
+      debug: { adAccountIdMasked: maskAdAccountId(adAccountId), mode },
     });
   });
 
@@ -260,6 +393,105 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
     } catch (err) {
       request.log.error({ err }, "Meta OAuth callback error");
       return reply.redirect(`${getWebUrl()}/settings?meta=error&error=internal_error`);
+    }
+  });
+
+  // POST /meta/sandbox-connect - DEV ONLY: connect with sandbox access token
+  app.post("/meta/sandbox-connect", async (request, reply) => {
+    if (process.env["NODE_ENV"] !== "development" && process.env["ALLOW_INSECURE_ADMIN"] !== "true") {
+      return reply.status(403).send({
+        error: "FORBIDDEN",
+        message: "Sandbox connect is only available in development",
+      });
+    }
+
+    const parsed = sandboxConnectBody.safeParse(request.body);
+
+    if (!parsed.success) {
+      return reply.status(400).send({
+        error: "VALIDATION_ERROR",
+        message: parsed.error.errors[0]?.message ?? parsed.error.message,
+        issues: parsed.error.issues,
+      });
+    }
+
+    const { customerId, accessToken, metaUserId, adAccountId, scopes } = parsed.data;
+    const now = new Date();
+
+    try {
+      // Verify token works by fetching /me
+      const meData = (await fetchMeta("/me", accessToken, {
+        fields: "id,name",
+      })) as { id?: string; name?: string };
+
+      const verifiedMetaUserId = metaUserId || meData.id || "sandbox-user";
+      const verifiedScopes = scopes || ["ads_management", "business_management"];
+
+      // Fetch ad accounts to verify token has access
+      let adAccounts: Array<{ id: string; name?: string }> = [];
+      try {
+        const adAccountsData = (await fetchMeta("/me/adaccounts", accessToken, {
+          fields: "id,name,account_status",
+        })) as { data?: Array<{ id: string; name?: string }> };
+        adAccounts = adAccountsData.data || [];
+      } catch (err) {
+        request.log.warn({ err }, "Could not fetch ad accounts, continuing anyway");
+      }
+
+      // Use provided adAccountId if it's in the list; else use first from list
+      const providedId = adAccountId?.trim() || null;
+      const normalizedProvided = providedId && !providedId.startsWith("act_") ? `act_${providedId}` : providedId;
+      const inList = adAccounts.some((a) => a.id === normalizedProvided || a.id === providedId);
+      const verifiedAdAccountId = inList && normalizedProvided ? normalizedProvided : adAccounts[0]?.id ?? null;
+      const selectedAdAccountId = verifiedAdAccountId;
+
+      await db
+        .insert(metaConnections)
+        .values({
+          customerId,
+          status: "connected",
+          metaUserId: verifiedMetaUserId,
+          accessToken,
+          tokenExpiresAt: null, // Sandbox tokens may not expire, or expire far in future
+          scopes: verifiedScopes,
+          adAccountId: verifiedAdAccountId,
+          selectedAdAccountId,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: metaConnections.customerId,
+          set: {
+            status: "connected",
+            metaUserId: verifiedMetaUserId,
+            accessToken,
+            tokenExpiresAt: null,
+            scopes: verifiedScopes,
+            adAccountId: verifiedAdAccountId,
+            selectedAdAccountId,
+            updatedAt: now,
+          },
+        });
+
+      request.log.info(
+        { customerId, metaUserId: verifiedMetaUserId, adAccountCount: adAccounts.length },
+        "Sandbox Meta connection successful"
+      );
+
+      return reply.send({
+        status: "connected",
+        metaUserId: verifiedMetaUserId,
+        adAccountId: verifiedAdAccountId,
+        scopes: verifiedScopes,
+        adAccounts: adAccounts.map((acc) => ({ id: acc.id, name: acc.name })),
+      });
+    } catch (err) {
+      const metaErr = err as MetaGraphError;
+      request.log.error({ err: metaErr }, "Sandbox connect failed");
+      return reply.status(400).send({
+        error: "META_API_ERROR",
+        message: metaErr.message || "Failed to verify access token",
+        hint: metaErr.hint || "Check that your access token is valid and has required permissions",
+      });
     }
   });
 
@@ -692,11 +924,14 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
-    // Update selected_ad_account_id
+    // Update selected_ad_account_id and reset partner verification (new account = re-verify)
     const [updated] = await db
       .update(metaConnections)
       .set({
         selectedAdAccountId: adAccountId,
+        partnerAccessStatus: "pending",
+        partnerAccessCheckedAt: null,
+        partnerAccessError: null,
         updatedAt: new Date(),
       })
       .where(eq(metaConnections.customerId, customerId))
@@ -717,6 +952,9 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       scopes: updated.scopes ?? null,
       tokenExpiresAt: updated.tokenExpiresAt?.toISOString() ?? null,
       selectedAdAccountId: updated.selectedAdAccountId ?? null,
+      partnerAccessStatus: updated.partnerAccessStatus ?? "pending",
+      partnerAccessCheckedAt: updated.partnerAccessCheckedAt?.toISOString() ?? null,
+      partnerAccessError: updated.partnerAccessError ?? null,
     });
   });
 }

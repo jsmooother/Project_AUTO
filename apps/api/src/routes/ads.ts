@@ -14,6 +14,8 @@ import {
   metaAdObjects,
   onboardingStates,
 } from "@repo/db/schema";
+import { resolveEffectiveAdAccountId, maskAdAccountId } from "../lib/metaAdAccount.js";
+import { sql } from "drizzle-orm";
 
 const settingsBody = z.object({
   geoMode: z.enum(["radius", "regions"]),
@@ -92,6 +94,18 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         .then((rows) => rows[0] ?? null),
     ]);
 
+    // Meta write mode and partner access (needed for prerequisites)
+    const allowRealWrite = process.env["ALLOW_REAL_META_WRITE"] === "true";
+    const allowDevSim = process.env["ALLOW_DEV_ADS_PUBLISH_SIM"] === "true";
+    const metaConnectedAndSelected =
+      metaConnection?.status === "connected" && !!metaConnection?.selectedAdAccountId;
+    const partnerAccessStatus = metaConnection?.partnerAccessStatus ?? "pending";
+    const metaPartnerAccessVerified = partnerAccessStatus === "verified";
+    const requirePartnerForRealWrite = allowRealWrite && !allowDevSim;
+    const metaOk =
+      metaConnectedAndSelected &&
+      (requirePartnerForRealWrite ? metaPartnerAccessVerified : true);
+
     // Prerequisites check
     const prerequisites = {
       website: {
@@ -115,15 +129,17 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         link: "/templates",
       },
       meta: {
-        ok: metaConnection?.status === "connected" && !!metaConnection?.selectedAdAccountId,
-        hint:
-          metaConnection?.status !== "connected"
+        ok: metaOk,
+        hint: !metaConnectedAndSelected
+          ? metaConnection?.status !== "connected"
             ? "Connect your Meta account"
-            : !metaConnection?.selectedAdAccountId
-              ? "Select an ad account in Settings → Meta"
-              : null,
+            : "Select an ad account in Settings → Meta"
+          : requirePartnerForRealWrite && !metaPartnerAccessVerified
+            ? "Verify Meta access in Settings"
+            : null,
         link: "/settings#meta",
       },
+      metaPartnerAccessVerified: requirePartnerForRealWrite ? metaPartnerAccessVerified : true,
     };
 
     // Derived budget
@@ -140,9 +156,13 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
     };
 
     // Meta write mode indicator (no secrets)
-    const allowRealWrite = process.env["ALLOW_REAL_META_WRITE"] === "true";
-    const allowDevSim = process.env["ALLOW_DEV_ADS_PUBLISH_SIM"] === "true";
     const metaWriteMode = allowRealWrite ? "real" : allowDevSim ? "sim" : "disabled";
+
+    // Resolve effective ad account (for internal test mode detection)
+    const { effectiveId: effectiveAdAccountId, mode: adAccountMode } = resolveEffectiveAdAccountId({
+      customerId,
+      selectedAdAccountId: metaConnection?.selectedAdAccountId ?? null,
+    });
 
     // Return rich status object
     return reply.send({
@@ -150,6 +170,8 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       derived: {
         budget: derivedBudget,
         metaWriteMode,
+        metaAccountMode: adAccountMode,
+        effectiveAdAccountIdLast4: adAccountMode === "internal_test" && effectiveAdAccountId ? maskAdAccountId(effectiveAdAccountId) : null,
       },
       settings: settings
         ? {
@@ -461,4 +483,231 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       updatedAt: objects.updatedAt.toISOString(),
     });
   });
+
+  // GET /ads/publish-preview - preview what would be published (no DB writes)
+  app.get("/ads/publish-preview", async (request, reply) => {
+    const customerId = request.customer.customerId;
+
+    // QA Gate: Validate scrape quality (same logic as worker)
+    const qaSampleSize = 10;
+    const qaItems = await db
+      .select({
+        id: inventoryItems.id,
+        title: inventoryItems.title,
+        url: inventoryItems.url,
+        price: inventoryItems.price,
+        detailsJson: inventoryItems.detailsJson,
+      })
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.customerId, customerId), sql`${inventoryItems.detailsJson} IS NOT NULL`))
+      .orderBy(desc(inventoryItems.firstSeenAt))
+      .limit(qaSampleSize);
+
+    let validCount = 0;
+    const qaResults: Array<{ itemId: string; valid: boolean; reason?: string }> = [];
+    
+    for (const item of qaItems) {
+      const validation = validateItemForMeta({
+        ...item,
+        detailsJson: item.detailsJson as Record<string, unknown> | null,
+      });
+      qaResults.push({ itemId: item.id, valid: validation.valid, reason: validation.reason });
+      if (validation.valid) {
+        validCount++;
+      }
+    }
+
+    const invalidRatio = qaItems.length > 0 ? (qaItems.length - validCount) / qaItems.length : 1;
+    const qaThreshold = 0.3; // 30% invalid threshold
+    const qaGatePassed = invalidRatio <= qaThreshold;
+
+    // Select latest N inventory items for Meta projection (N=2 for now)
+    const itemLimit = 2;
+    const candidateItems = await db
+      .select({
+        id: inventoryItems.id,
+        title: inventoryItems.title,
+        url: inventoryItems.url,
+        price: inventoryItems.price,
+        detailsJson: inventoryItems.detailsJson,
+      })
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.customerId, customerId),
+          sql`${inventoryItems.detailsJson} IS NOT NULL`
+        )
+      )
+      .orderBy(desc(inventoryItems.firstSeenAt))
+      .limit(itemLimit * 3); // Get extra candidates in case some fail projection/validation
+
+    // Project items for Meta
+    const projectedItems: Array<{
+      title: string;
+      priceAmount: number;
+      currency: string;
+      imageUrl: string;
+      destinationUrl: string;
+      vehicleId: string;
+    }> = [];
+    for (const item of candidateItems) {
+      const projected = projectInventoryItemForMeta({
+        ...item,
+        detailsJson: item.detailsJson as Record<string, unknown> | null,
+      });
+      if (projected) {
+        projectedItems.push({
+          title: projected.title,
+          priceAmount: projected.price,
+          currency: projected.currency,
+          imageUrl: projected.imageUrl,
+          destinationUrl: projected.destinationUrl,
+          vehicleId: projected.vehicleId,
+        });
+        if (projectedItems.length >= itemLimit) {
+          break;
+        }
+      }
+    }
+
+    const ok = qaGatePassed && projectedItems.length > 0;
+    const hint = !qaGatePassed
+      ? `Scrape quality too low (${Math.round(invalidRatio * 100)}% invalid). Check Scrape QA panel or inventory quality.`
+      : projectedItems.length === 0
+        ? "No valid inventory items found for Meta ads. Ensure items have: price >= 50k SEK, valid image URL, valid HTTPS URL, and title."
+        : undefined;
+
+    return reply.send({
+      ok,
+      qaGate: {
+        total: qaItems.length,
+        invalid: qaItems.length - validCount,
+        invalidRate: invalidRatio,
+        threshold: qaThreshold,
+        failures: qaResults.filter((r) => !r.valid),
+      },
+      projectedItems,
+      hint,
+    });
+  });
+}
+
+// Helper functions (duplicated from worker for API use)
+function validateItemForMeta(item: {
+  id: string;
+  title: string | null;
+  url: string | null;
+  price: number | null;
+  detailsJson: Record<string, unknown> | null;
+}): { valid: boolean; reason?: string } {
+  if (!item.detailsJson) {
+    return { valid: false, reason: "Missing details_json" };
+  }
+
+  const title = item.title?.trim() ?? (item.detailsJson.title as string)?.trim() ?? "";
+  if (!title) {
+    return { valid: false, reason: "Missing title" };
+  }
+
+  let price = 0;
+  if (item.detailsJson.priceAmount) {
+    price = typeof item.detailsJson.priceAmount === "number" 
+      ? item.detailsJson.priceAmount 
+      : parseInt(String(item.detailsJson.priceAmount), 10);
+  } else if (item.price) {
+    price = item.price;
+  }
+  
+  if (!price || price < 50000) {
+    return { valid: false, reason: `Invalid price: ${price} (must be >= 50,000)` };
+  }
+
+  let imageUrl = "";
+  if (item.detailsJson.primaryImageUrl && typeof item.detailsJson.primaryImageUrl === "string") {
+    imageUrl = item.detailsJson.primaryImageUrl;
+  } else if (item.detailsJson.images && Array.isArray(item.detailsJson.images) && item.detailsJson.images.length > 0) {
+    const firstImage = item.detailsJson.images[0];
+    imageUrl = typeof firstImage === "string" ? firstImage : String(firstImage);
+  }
+  
+  if (!imageUrl || !imageUrl.startsWith("http")) {
+    return { valid: false, reason: "Missing or invalid image URL" };
+  }
+
+  const url = item.url?.trim() ?? "";
+  if (!url || !url.startsWith("https")) {
+    return { valid: false, reason: "Missing or invalid URL (must be HTTPS)" };
+  }
+
+  return { valid: true };
+}
+
+function projectInventoryItemForMeta(item: {
+  id: string;
+  title: string | null;
+  url: string | null;
+  price: number | null;
+  detailsJson: Record<string, unknown> | null;
+}): {
+  title: string;
+  price: number;
+  currency: string;
+  imageUrl: string;
+  destinationUrl: string;
+  vehicleId: string;
+} | null {
+  if (!item.detailsJson) {
+    return null;
+  }
+
+  let title = item.title?.trim() ?? "";
+  if (!title && item.detailsJson.title && typeof item.detailsJson.title === "string") {
+    title = item.detailsJson.title.trim();
+  }
+  if (!title) {
+    return null;
+  }
+
+  let price = 0;
+  if (item.detailsJson.priceAmount) {
+    price = typeof item.detailsJson.priceAmount === "number" 
+      ? item.detailsJson.priceAmount 
+      : parseInt(String(item.detailsJson.priceAmount), 10);
+  } else if (item.price) {
+    price = item.price;
+  }
+  
+  if (!price || price < 50000) {
+    return null;
+  }
+
+  const currency = (item.detailsJson.currency as string)?.toUpperCase() || "SEK";
+
+  let imageUrl = "";
+  if (item.detailsJson.primaryImageUrl && typeof item.detailsJson.primaryImageUrl === "string") {
+    imageUrl = item.detailsJson.primaryImageUrl;
+  } else if (item.detailsJson.images && Array.isArray(item.detailsJson.images) && item.detailsJson.images.length > 0) {
+    const firstImage = item.detailsJson.images[0];
+    imageUrl = typeof firstImage === "string" ? firstImage : String(firstImage);
+  }
+  
+  if (!imageUrl || !imageUrl.startsWith("http")) {
+    return null;
+  }
+
+  const destinationUrl = item.url?.trim() ?? "";
+  if (!destinationUrl || !destinationUrl.startsWith("http")) {
+    return null;
+  }
+
+  const vehicleId = item.id;
+
+  return {
+    title,
+    price: Math.round(price),
+    currency,
+    imageUrl,
+    destinationUrl,
+    vehicleId,
+  };
 }

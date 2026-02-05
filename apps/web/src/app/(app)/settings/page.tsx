@@ -7,7 +7,9 @@ import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { TestModeBanner } from "@/components/TestModeBanner";
 import { PageHeader, Banner } from "@/components/ui";
+import { useI18n } from "@/lib/i18n/context";
 import { User, Globe, AlertTriangle, CheckCircle2, Bell, Loader2 } from "lucide-react";
 
 function MetaIcon({ size = 20 }: { size?: number }) {
@@ -108,6 +110,12 @@ interface MetaConnectionStatus {
   scopes: string[] | null;
   tokenExpiresAt?: string | null;
   selectedAdAccountId?: string | null;
+  partnerAccessStatus?: "pending" | "verified" | "failed";
+  partnerAccessCheckedAt?: string | null;
+  partnerAccessError?: string | null;
+  systemUserConfigured?: boolean;
+  metaPartnerName?: string | null;
+  metaBusinessManagerId?: string | null;
 }
 
 interface MetaAdAccount {
@@ -119,6 +127,7 @@ interface MetaAdAccount {
 
 function SettingsPage() {
   const { auth } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -146,6 +155,14 @@ function SettingsPage() {
   const [selectedAdAccountId, setSelectedAdAccountId] = useState<string>("");
   const [selectAdAccountLoading, setSelectAdAccountLoading] = useState(false);
   const [adAccountError, setAdAccountError] = useState<string | null>(null);
+  const [adsStatus, setAdsStatus] = useState<{ derived?: { metaAccountMode?: "internal_test" | "customer_selected" } } | null>(null);
+  const [permissionsCheckLoading, setPermissionsCheckLoading] = useState(false);
+  const [permissionsCheckResult, setPermissionsCheckResult] = useState<{
+    ok: boolean;
+    status: string;
+    hint?: string;
+    checkedAt?: string;
+  } | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
   const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
@@ -159,7 +176,8 @@ function SettingsPage() {
         { customerId }
       ),
       apiGet<MetaConnectionStatus>("/meta/status", { customerId }),
-    ]).then(([inv, meta]) => {
+      apiGet<{ derived?: { metaAccountMode?: "internal_test" | "customer_selected" } }>("/ads/status", { customerId }),
+    ]).then(([inv, meta, ads]) => {
       if (inv.ok) {
         setSource(inv.data.source ?? null);
         setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
@@ -168,6 +186,9 @@ function SettingsPage() {
       if (meta.ok) {
         setMetaConnection(meta.data);
         setSelectedAdAccountId(meta.data.selectedAdAccountId ?? "");
+      }
+      if (ads.ok) {
+        setAdsStatus(ads.data);
       }
       setLoading(false);
     });
@@ -197,6 +218,7 @@ function SettingsPage() {
     if (!customerId || !selectedAdAccountId) return;
     setSelectAdAccountLoading(true);
     setAdAccountError(null);
+    setPermissionsCheckResult(null);
     const res = await apiPost<MetaConnectionStatus>("/meta/ad-accounts/select", { adAccountId: selectedAdAccountId }, { customerId });
     setSelectAdAccountLoading(false);
     if (res.ok) {
@@ -204,6 +226,24 @@ function SettingsPage() {
       setSelectedAdAccountId(res.data.selectedAdAccountId ?? "");
     } else {
       setAdAccountError(res.errorDetail?.error ?? res.error ?? "Failed to select ad account");
+    }
+  };
+
+  const handlePermissionsCheck = async () => {
+    if (!customerId) return;
+    setPermissionsCheckLoading(true);
+    setPermissionsCheckResult(null);
+    const res = await apiGet<{ ok: boolean; status: string; hint?: string; checkedAt?: string }>("/meta/permissions/check", { customerId });
+    setPermissionsCheckLoading(false);
+    if (res.ok && res.data) {
+      setPermissionsCheckResult(res.data);
+      if (res.data.ok) {
+        apiGet<MetaConnectionStatus>("/meta/status", { customerId }).then((r) => {
+          if (r.ok) setMetaConnection(r.data);
+        });
+      }
+    } else {
+      setPermissionsCheckResult({ ok: false, status: "error", hint: res.error ?? "Request failed" });
     }
   };
 
@@ -573,8 +613,18 @@ function SettingsPage() {
           </div>
         </CardSection>
 
-        {/* Connected Meta Account */}
+        {/* Connected Meta Account — 3-step flow: Connect (optional), Select ad account, Grant Partner Access */}
         <CardSection icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>} iconBg="#dbeafe" iconColor="#2563eb" title="Connected Meta account" description="Your Meta (Facebook/Instagram) advertising platform">
+          {adsStatus?.derived?.metaAccountMode === "internal_test" && (
+            <div style={{ marginBottom: "1rem" }}>
+              <TestModeBanner />
+            </div>
+          )}
+          {metaConnection?.systemUserConfigured === false && (
+            <div style={{ marginBottom: "1rem", padding: "0.75rem", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "var(--pa-radius)", fontSize: "0.875rem" }}>
+              {t.settings.meta.metaNotConfiguredBanner}
+            </div>
+          )}
           {metaError && (
             <div style={{ marginBottom: "1rem" }}>
               <ErrorBanner message={metaError} />
@@ -594,7 +644,8 @@ function SettingsPage() {
             >
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                  <h4 style={{ fontWeight: 500, fontSize: "0.875rem" }}>Connected</h4>
+                  <span style={{ fontSize: "0.75rem", color: "var(--pa-gray)", fontWeight: 500 }}>{t.settings.meta.step1Optional}</span>
+                  <h4 style={{ fontWeight: 500, fontSize: "0.875rem" }}>{t.settings.meta.connectMeta}</h4>
                   <span
                     style={{
                       display: "inline-flex",
@@ -655,7 +706,7 @@ function SettingsPage() {
               </div>
             </div>
           )}
-          {/* Ad Account Selection */}
+          {/* Step 2: Ad Account Selection */}
           {metaConnection?.status === "connected" && (
             <div
               style={{
@@ -667,7 +718,8 @@ function SettingsPage() {
               }}
             >
               <div style={{ marginBottom: "0.75rem" }}>
-                <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 2 }}>Ad Account Selection</h4>
+                <span style={{ fontSize: "0.75rem", color: "var(--pa-gray)", fontWeight: 500 }}>{t.settings.meta.step2SelectAdAccount}</span>
+                <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 2 }}>{t.settings.meta.selectAdAccount}</h4>
                 <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)" }}>Select which Meta ad account to use for your campaigns</p>
               </div>
               {adAccountError && (
@@ -749,6 +801,95 @@ function SettingsPage() {
               )}
             </div>
           )}
+
+          {/* Step 3: Grant Partner Access + Verify */}
+          {metaConnection?.status === "connected" && metaConnection?.selectedAdAccountId && (
+            <div
+              style={{
+                padding: "1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: "var(--pa-radius)",
+                marginBottom: "1rem",
+                background: "#f9fafb",
+              }}
+            >
+              <span style={{ fontSize: "0.75rem", color: "var(--pa-gray)", fontWeight: 500 }}>{t.settings.meta.step3GrantPartnerAccess}</span>
+              <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 4 }}>{t.settings.meta.grantPartnerAccessTitle}</h4>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
+                {t.settings.meta.grantPartnerInstructions.replace("{partnerName}", metaConnection?.metaPartnerName ?? "Project Auto")}
+                {metaConnection?.metaBusinessManagerId && (
+                  <span style={{ display: "block", marginTop: 4 }}>Business Manager ID: {metaConnection.metaBusinessManagerId}</span>
+                )}
+              </p>
+              <div style={{ marginBottom: "0.75rem" }}>
+                <a
+                  href="https://business.facebook.com/settings"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: "0.875rem", color: "var(--pa-blue)", textDecoration: "underline" }}
+                >
+                  {t.settings.meta.openMetaBusinessSettings}
+                </a>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={handlePermissionsCheck}
+                  disabled={permissionsCheckLoading || metaConnection?.systemUserConfigured === false}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    border: "1px solid var(--pa-border)",
+                    borderRadius: 6,
+                    background: permissionsCheckLoading || metaConnection?.systemUserConfigured === false ? "#d1d5db" : "var(--pa-dark)",
+                    color: "white",
+                    cursor: permissionsCheckLoading || metaConnection?.systemUserConfigured === false ? "not-allowed" : "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                  }}
+                >
+                  {permissionsCheckLoading ? t.settings.meta.checking : t.settings.meta.verifyAccess}
+                </button>
+                <span
+                  style={{
+                    padding: "0.25rem 0.5rem",
+                    borderRadius: 4,
+                    fontSize: "0.75rem",
+                    fontWeight: 500,
+                    background:
+                      (metaConnection?.partnerAccessStatus ?? "pending") === "verified"
+                        ? "#d1fae5"
+                        : (metaConnection?.partnerAccessStatus ?? "pending") === "failed"
+                          ? "#fef2f2"
+                          : "#f3f4f6",
+                    color:
+                      (metaConnection?.partnerAccessStatus ?? "pending") === "verified"
+                        ? "#065f46"
+                        : (metaConnection?.partnerAccessStatus ?? "pending") === "failed"
+                          ? "#991b1b"
+                          : "var(--pa-gray)",
+                  }}
+                >
+                  {(metaConnection?.partnerAccessStatus ?? "pending") === "verified"
+                    ? t.settings.meta.statusVerified
+                    : (metaConnection?.partnerAccessStatus ?? "pending") === "failed"
+                      ? t.settings.meta.statusFailed
+                      : t.settings.meta.statusPending}
+                </span>
+              </div>
+              {metaConnection?.partnerAccessStatus === "verified" && (
+                <div style={{ padding: "0.75rem", background: "#d1fae5", border: "1px solid #a7f3d0", borderRadius: "var(--pa-radius)", fontSize: "0.875rem", color: "#065f46", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <CheckCircle2 size={18} />
+                  <span>{t.settings.meta.partnerAccessVerified}</span>
+                </div>
+              )}
+              {(permissionsCheckResult?.ok === false || metaConnection?.partnerAccessStatus === "failed") && (
+                <div style={{ padding: "0.75rem", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--pa-radius)", fontSize: "0.875rem", color: "#991b1b" }}>
+                  <strong>{t.settings.meta.accessNotGrantedYet}</strong> {permissionsCheckResult?.hint ?? metaConnection?.partnerAccessError ?? ""}
+                </div>
+              )}
+            </div>
+          )}
+
           {metaConnection?.status !== "connected" && (
             <div
               style={{

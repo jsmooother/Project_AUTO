@@ -16,6 +16,8 @@ import {
 import type { QueuedJob } from "@repo/queue";
 import { metaPost, type MetaGraphError } from "../lib/metaGraph.js";
 import { projectInventoryItemForMeta, validateItemForMeta, type MetaProjectedItem } from "../lib/metaItemProjection.js";
+import { resolveEffectiveAdAccountId, maskAdAccountId } from "../lib/metaAdAccount.js";
+import { getEffectiveMetaAccessToken } from "../lib/metaAuth.js";
 
 /**
  * ADS_PUBLISH job: Campaign publish
@@ -269,7 +271,23 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
         return;
       }
 
-      if (!metaConn.selectedAdAccountId) {
+      if (!allowDevPublish && metaConn.partnerAccessStatus !== "verified") {
+        const msg = "Partner access not verified. Verify Meta access in Settings → Meta before publishing.";
+        await db
+          .update(adRuns)
+          .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+        await job.deadLetter(msg);
+        return;
+      }
+
+      // Resolve effective ad account ID (may use test override)
+      const { effectiveId: effectiveAdAccountId, mode: adAccountMode } = resolveEffectiveAdAccountId({
+        customerId,
+        selectedAdAccountId: metaConn.selectedAdAccountId,
+      });
+
+      if (!effectiveAdAccountId) {
         const msg = "No ad account selected. Select an ad account in Settings → Meta.";
         await db
           .update(adRuns)
@@ -279,8 +297,12 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
         return;
       }
 
-      if (!metaConn.accessToken || metaConn.accessToken === "dev-token-placeholder") {
-        const msg = "Invalid Meta access token. Reconnect Meta account.";
+      const { token: accessToken, mode: tokenMode } = await getEffectiveMetaAccessToken(customerId);
+      if (!accessToken || tokenMode === "none") {
+        const msg =
+          tokenMode === "none"
+            ? "Meta system user token not configured. Configure META_SYSTEM_USER_ACCESS_TOKEN for production."
+            : "Invalid Meta access token. Reconnect Meta account or configure system user token.";
         await db
           .update(adRuns)
           .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
@@ -289,9 +311,10 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
         return;
       }
 
-      const adAccountId = metaConn.selectedAdAccountId;
-      const accessToken = metaConn.accessToken;
+      const adAccountId = effectiveAdAccountId;
       const actId = adAccountId.replace("act_", "");
+
+      console.log(JSON.stringify({ event: "ads_publish_ad_account_resolved", runId, customerId, adAccountMode, effectiveAdAccountId: maskAdAccountId(adAccountId) }));
 
       // Select latest N inventory items for Meta projection (N=2 for now)
       const itemLimit = 2;

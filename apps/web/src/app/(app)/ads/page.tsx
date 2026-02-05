@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
+import { useI18n } from "@/lib/i18n/context";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { TestModeBanner } from "@/components/TestModeBanner";
 import {
   CheckCircle2,
   XCircle,
@@ -48,6 +50,7 @@ interface AdsStatus {
     inventory: { ok: boolean; count: number; hint: string | null };
     templates: { ok: boolean; hint: string | null; link: string };
     meta: { ok: boolean; hint: string | null; link: string };
+    metaPartnerAccessVerified?: boolean;
   };
   settings: {
     id: string;
@@ -88,6 +91,8 @@ interface AdsStatus {
       effective: number | null;
     };
     metaWriteMode?: "real" | "sim" | "disabled";
+    metaAccountMode?: "internal_test" | "customer_selected";
+    effectiveAdAccountIdLast4?: string | null;
   };
   /** @deprecated Use derived.budget */
   derivedBudget?: {
@@ -101,6 +106,7 @@ const AVAILABLE_REGIONS = ["Stockholm", "Göteborg", "Malmö", "Uppsala", "Väst
 
 function AdsContent() {
   const { auth } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const [status, setStatus] = useState<AdsStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -268,6 +274,7 @@ function AdsContent() {
   const isReady = prerequisites.website.ok && prerequisites.inventory.ok && prerequisites.templates.ok && prerequisites.meta.ok;
   const adsLaunched = objects?.status === "active" || settings?.status === "active";
   const configDone = settings && (settings.geoMode === "radius" ? settings.geoCenterText : settings.geoRegionsJson?.length) && settings.formatsJson.length > 0;
+  const isTestMode = derived?.metaAccountMode === "internal_test";
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
@@ -348,6 +355,15 @@ function AdsContent() {
       {error && (
         <div style={{ marginBottom: "1.5rem" }}>
           <ErrorBanner message={error} />
+        </div>
+      )}
+
+      {!prerequisites.meta.ok && prerequisites.metaPartnerAccessVerified === false && (
+        <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: "var(--pa-radius)", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+          <span style={{ fontSize: "0.875rem" }}>{t.ads.verifyMetaAccessCta}</span>
+          <Link href="/settings#meta" style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-dark)", textDecoration: "underline" }}>
+            {t.nav.settings} → Meta
+          </Link>
         </div>
       )}
 
@@ -1053,26 +1069,47 @@ function AdsContent() {
             </div>
             <div style={{ display: "flex", gap: "0.75rem" }}>
               {!adsLaunched ? (
-                <button
-                  onClick={handlePublish}
-                  disabled={publishLoading || !configDone}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.75rem 1.5rem",
-                    background: publishLoading || !configDone ? "#d1d5db" : "var(--pa-blue)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: 6,
-                    fontWeight: 500,
-                    fontSize: "1rem",
-                    cursor: publishLoading || !configDone ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {publishLoading ? <LoadingSpinner /> : <Rocket size={16} />}
-                  Launch Campaign
-                </button>
+                <>
+                  <Link
+                    href="/ads/preview"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.75rem 1.5rem",
+                      background: !configDone ? "#d1d5db" : "white",
+                      color: !configDone ? "#9ca3af" : "var(--pa-dark)",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 6,
+                      fontWeight: 500,
+                      fontSize: "1rem",
+                      cursor: !configDone ? "not-allowed" : "pointer",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {t.ads.previewAds}
+                  </Link>
+                  <button
+                    onClick={handlePublish}
+                    disabled={publishLoading || !configDone}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.75rem 1.5rem",
+                      background: publishLoading || !configDone ? "#d1d5db" : "var(--pa-blue)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      fontWeight: 500,
+                      fontSize: "1rem",
+                      cursor: publishLoading || !configDone ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {publishLoading ? <LoadingSpinner /> : <Rocket size={16} />}
+                    Launch Campaign
+                  </button>
+                </>
               ) : (
                 <>
                   <button

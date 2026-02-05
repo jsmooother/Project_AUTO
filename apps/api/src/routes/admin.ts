@@ -27,6 +27,7 @@ import {
 } from "@repo/db/schema";
 import { z } from "zod";
 import { metaGet } from "../lib/metaGraph.js";
+import { getEffectiveMetaAccessToken } from "../lib/metaAuth.js";
 
 const DEMO_PASSWORD = "demo-password";
 
@@ -806,7 +807,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         .where(and(eq(metaConnections.customerId, customerId), eq(metaConnections.status, "connected")))
         .limit(1);
       const [objects] = await db.select().from(metaAdObjects).where(eq(metaAdObjects.customerId, customerId)).limit(1);
-      if (!metaConn?.accessToken || !objects?.campaignId) {
+      const { token: effectiveToken } = await getEffectiveMetaAccessToken(customerId);
+      if (!effectiveToken || !objects?.campaignId) {
         return reply.status(200).send({
           since,
           until,
@@ -824,7 +826,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
           "time_range[until]": String(until),
           time_increment: "1",
         };
-        const response = (await metaGet(`/${objects.campaignId}/insights`, metaConn.accessToken, params)) as {
+        const response = (await metaGet(`/${objects.campaignId}/insights`, effectiveToken, params)) as {
           data?: Array<Record<string, unknown>>;
         };
         const data = (response.data || []) as Array<Record<string, unknown>>;

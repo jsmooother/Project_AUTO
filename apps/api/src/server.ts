@@ -60,6 +60,8 @@ app.addHook("preHandler", async (request, reply) => {
   if (path === "/health" || path === "/signup" || path?.startsWith("/auth/")) return;
   // OAuth callback needs session but not customer context (it validates state instead)
   if (path === "/meta/oauth/callback") return;
+  // Sandbox connect bypasses customer context in dev mode (uses customerId from body)
+  if (path === "/meta/sandbox-connect") return;
   if (path?.startsWith("/admin/")) {
     return new Promise<void>((resolve, reject) => {
       requireAdminContext(request, reply, (err) => {

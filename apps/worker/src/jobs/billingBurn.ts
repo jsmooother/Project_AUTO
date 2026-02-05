@@ -8,6 +8,7 @@ import {
   metaAdObjects,
 } from "@repo/db/schema";
 import { metaGet } from "../lib/metaGraph.js";
+import { getEffectiveMetaAccessToken } from "../lib/metaAuth.js";
 import type { QueuedJob } from "@repo/queue";
 
 export type BillingBurnPayload = {
@@ -147,7 +148,7 @@ export async function processBillingBurn(job: QueuedJob<BillingBurnPayload>): Pr
         .limit(1);
       const [objects] = await db.select().from(metaAdObjects).where(eq(metaAdObjects.customerId, customerId)).limit(1);
       const campaignId = objects?.campaignId ?? null;
-      const accessToken = metaConn?.accessToken;
+      const { token: accessToken } = await getEffectiveMetaAccessToken(customerId);
       if (!accessToken || !campaignId) {
         console.log(JSON.stringify({ event: "billing_burn_skipped", customerId, periodDate, reason: "no_meta_or_campaign" }));
         await job.ack();

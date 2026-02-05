@@ -5,25 +5,25 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
-import { LanguageProvider, useLanguage } from "@/lib/language";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useI18n } from "@/lib/i18n/context";
 import { LayoutDashboard, Package, Play, DollarSign, LayoutTemplate, Settings as SettingsIcon, ChevronDown, Megaphone, BarChart3 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 const NAV_LINKS = [
-  { href: "/dashboard", key: "nav.dashboard", icon: LayoutDashboard },
-  { href: "/inventory", key: "nav.inventory", icon: Package },
-  { href: "/runs", key: "nav.automation", icon: Play },
-  { href: "/templates", key: "nav.templates", icon: LayoutTemplate },
-  { href: "/ads", key: "nav.ads", icon: Megaphone },
-  { href: "/performance", key: "nav.performance", icon: BarChart3 },
-  { href: "/billing", key: "nav.billing", icon: DollarSign },
-  { href: "/settings", key: "nav.settings", icon: SettingsIcon },
+  { href: "/dashboard", key: "dashboard" as const, icon: LayoutDashboard },
+  { href: "/inventory", key: "inventory" as const, icon: Package },
+  { href: "/automation", key: "automation" as const, icon: Play },
+  { href: "/templates", key: "templates" as const, icon: LayoutTemplate },
+  { href: "/ads", key: "ads" as const, icon: Megaphone },
+  { href: "/performance", key: "performance" as const, icon: BarChart3 },
+  { href: "/billing", key: "billing" as const, icon: DollarSign },
+  { href: "/settings", key: "settings" as const, icon: SettingsIcon },
 ];
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { auth, clearAuth } = useAuth();
-  const { t } = useLanguage();
+  const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -120,7 +120,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     <Icon style={{ width: 16, height: 16 }} />
-                    {t(key)}
+                    {t.nav[key]}
                   </Link>
                 );
               })}
@@ -129,7 +129,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
             <LanguageSwitcher />
-            
             <div ref={menuRef} style={{ position: "relative" }}>
               <button
                 type="button"
@@ -195,7 +194,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                       textDecoration: "none",
                     }}
                   >
-                    {t("nav.settings")}
+                    {t.nav.settings}
                   </Link>
                   <Link
                     href="/billing"
@@ -208,7 +207,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                       textDecoration: "none",
                     }}
                   >
-                    {t("nav.billing")}
+                    {t.nav.billing}
                   </Link>
                   <button
                     type="button"
@@ -225,7 +224,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                       color: "var(--pa-dark)",
                     }}
                   >
-                    {t("nav.logout")}
+                    {t.common.logout}
                   </button>
                 </div>
               )}
@@ -251,9 +250,5 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <LanguageProvider>
-      <AppLayoutInner>{children}</AppLayoutInner>
-    </LanguageProvider>
-  );
+  return <AppLayoutInner>{children}</AppLayoutInner>;
 }

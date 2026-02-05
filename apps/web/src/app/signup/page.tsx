@@ -1,7 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+
+// Common email providers to skip domain extraction
+const COMMON_EMAIL_PROVIDERS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "hotmail.com",
+  "icloud.com",
+  "aol.com",
+  "mail.com",
+  "protonmail.com",
+  "yandex.com",
+  "zoho.com",
+]);
+
+function extractDomainFromEmail(email: string): string | null {
+  const trimmed = email.trim().toLowerCase();
+  const match = trimmed.match(/@([^@]+)$/);
+  if (!match) return null;
+  const domain = match[1];
+  if (COMMON_EMAIL_PROVIDERS.has(domain)) return null;
+  return domain;
+}
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -9,6 +32,15 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestedDomain, setSuggestedDomain] = useState<string | null>(null);
+  const [useSuggestedDomain, setUseSuggestedDomain] = useState(true);
+
+  // Extract domain from email when it changes
+  useEffect(() => {
+    const domain = extractDomainFromEmail(email);
+    setSuggestedDomain(domain);
+    setUseSuggestedDomain(domain !== null);
+  }, [email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +65,11 @@ export default function SignupPage() {
       localStorage.setItem("customerId", data.customerId);
       localStorage.setItem("userId", data.userId);
       localStorage.setItem("email", data.email);
+
+      // If we have a suggested domain and user wants to use it, store it for onboarding
+      if (suggestedDomain && useSuggestedDomain) {
+        sessionStorage.setItem("suggestedCompanyWebsite", suggestedDomain);
+      }
 
       window.location.href = "/dashboard";
     } catch (err) {
@@ -185,6 +222,36 @@ export default function SignupPage() {
                 }}
               />
             </div>
+
+            {suggestedDomain && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: "#eff6ff",
+                  border: "1px solid #bfdbfe",
+                  borderRadius: "6px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <input
+                    id="useDomain"
+                    type="checkbox"
+                    checked={useSuggestedDomain}
+                    onChange={(e) => setUseSuggestedDomain(e.target.checked)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  <label htmlFor="useDomain" style={{ fontSize: "0.875rem", cursor: "pointer", flex: 1 }}>
+                    Use <strong>{suggestedDomain}</strong> as your company website?
+                  </label>
+                </div>
+                <p style={{ fontSize: "0.75rem", color: "#1e40af", marginLeft: "1.5rem" }}>
+                  We'll automatically connect this website during onboarding
+                </p>
+              </div>
+            )}
 
             <button
               type="submit"

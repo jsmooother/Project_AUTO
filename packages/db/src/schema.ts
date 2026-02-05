@@ -410,6 +410,9 @@ export const metaConnections = pgTable(
     scopes: text("scopes").array(),
     adAccountId: text("ad_account_id"),
     selectedAdAccountId: text("selected_ad_account_id"),
+    partnerAccessStatus: text("partner_access_status").notNull().default("pending"), // pending|verified|failed
+    partnerAccessCheckedAt: timestamp("partner_access_checked_at", { withTimezone: true }),
+    partnerAccessError: text("partner_access_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
