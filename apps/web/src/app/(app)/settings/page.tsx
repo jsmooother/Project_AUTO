@@ -11,6 +11,7 @@ import { TestModeBanner } from "@/components/TestModeBanner";
 import { PageHeader, Banner } from "@/components/ui";
 import { useI18n } from "@/lib/i18n/context";
 import { User, Globe, AlertTriangle, CheckCircle2, Bell, Loader2 } from "lucide-react";
+import { CopyToClipboard } from "@/components/CopyToClipboard";
 
 function MetaIcon({ size = 20 }: { size?: number }) {
   return (
@@ -116,6 +117,7 @@ interface MetaConnectionStatus {
   systemUserConfigured?: boolean;
   metaPartnerName?: string | null;
   metaBusinessManagerId?: string | null;
+  metaBusinessManagerIdFull?: string | null;
 }
 
 interface MetaAdAccount {
@@ -243,7 +245,8 @@ function SettingsPage() {
         });
       }
     } else {
-      setPermissionsCheckResult({ ok: false, status: "error", hint: res.error ?? "Request failed" });
+      const hint = !res.ok ? res.error : "Request failed";
+      setPermissionsCheckResult({ ok: false, status: "error", hint });
     }
   };
 
@@ -814,13 +817,40 @@ function SettingsPage() {
               }}
             >
               <span style={{ fontSize: "0.75rem", color: "var(--pa-gray)", fontWeight: 500 }}>{t.settings.meta.step3GrantPartnerAccess}</span>
-              <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 4 }}>{t.settings.meta.grantPartnerAccessTitle}</h4>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
-                {t.settings.meta.grantPartnerInstructions.replace("{partnerName}", metaConnection?.metaPartnerName ?? "Project Auto")}
-                {metaConnection?.metaBusinessManagerId && (
-                  <span style={{ display: "block", marginTop: 4 }}>Business Manager ID: {metaConnection.metaBusinessManagerId}</span>
-                )}
-              </p>
+              <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: 8 }}>{t.settings.meta.grantPartnerAccessTitle}</h4>
+
+              {!metaConnection?.metaBusinessManagerId && (
+                <div style={{ padding: "0.75rem", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: "var(--pa-radius)", fontSize: "0.875rem", color: "#92400e", marginBottom: "1rem" }}>
+                  {t.settings.meta.metaNotConfiguredForProductionBanner}
+                </div>
+              )}
+
+              <p style={{ fontSize: "0.875rem", fontWeight: 500, marginBottom: 6 }}>{t.settings.meta.step3WhatToDo}</p>
+              <ol style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem", paddingLeft: "1.25rem" }}>
+                <li style={{ marginBottom: 4 }}>{t.settings.meta.step3AddPartner}</li>
+                <li style={{ marginBottom: 4 }}>{t.settings.meta.step3GrantAccess}</li>
+                <li>{t.settings.meta.step3PermissionWording}</li>
+              </ol>
+
+              <div style={{ marginBottom: "0.5rem" }}>
+                <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: 4 }}>{t.settings.meta.partnerNameLabel}</label>
+                <code style={{ display: "block", padding: "0.5rem 0.75rem", background: "#f3f4f6", border: "1px solid var(--pa-border)", borderRadius: 6, fontSize: "0.875rem", fontFamily: "ui-monospace, monospace" }}>
+                  {metaConnection?.metaPartnerName ?? "Project Auto"}
+                </code>
+              </div>
+
+              {metaConnection?.metaBusinessManagerId && (
+                <CopyToClipboard
+                  value={metaConnection?.metaBusinessManagerIdFull ?? metaConnection?.metaBusinessManagerId ?? ""}
+                  label={t.settings.meta.partnerBusinessIdLabel}
+                  maskedValue={metaConnection?.metaBusinessManagerId}
+                  showFullDefault={!!metaConnection?.metaBusinessManagerIdFull}
+                  copyLabel={t.common.copy}
+                  copiedLabel={t.common.copied}
+                  showFullLabel={t.settings.meta.showFull}
+                />
+              )}
+
               <div style={{ marginBottom: "0.75rem" }}>
                 <a
                   href="https://business.facebook.com/settings"
@@ -831,18 +861,33 @@ function SettingsPage() {
                   {t.settings.meta.openMetaBusinessSettings}
                 </a>
               </div>
+
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   onClick={handlePermissionsCheck}
-                  disabled={permissionsCheckLoading || metaConnection?.systemUserConfigured === false}
+                  disabled={
+                    permissionsCheckLoading ||
+                    metaConnection?.systemUserConfigured === false ||
+                    !metaConnection?.metaBusinessManagerId
+                  }
                   style={{
                     padding: "0.5rem 1rem",
                     border: "1px solid var(--pa-border)",
                     borderRadius: 6,
-                    background: permissionsCheckLoading || metaConnection?.systemUserConfigured === false ? "#d1d5db" : "var(--pa-dark)",
+                    background:
+                      permissionsCheckLoading ||
+                      metaConnection?.systemUserConfigured === false ||
+                      !metaConnection?.metaBusinessManagerId
+                        ? "#d1d5db"
+                        : "var(--pa-dark)",
                     color: "white",
-                    cursor: permissionsCheckLoading || metaConnection?.systemUserConfigured === false ? "not-allowed" : "pointer",
+                    cursor:
+                      permissionsCheckLoading ||
+                      metaConnection?.systemUserConfigured === false ||
+                      !metaConnection?.metaBusinessManagerId
+                        ? "not-allowed"
+                        : "pointer",
                     fontSize: "0.875rem",
                     fontWeight: 500,
                   }}

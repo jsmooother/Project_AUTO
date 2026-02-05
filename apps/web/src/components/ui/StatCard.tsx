@@ -13,12 +13,18 @@ export function StatCard({
   variant?: "default" | "success" | "warning" | "info";
   subtitle?: string;
 }) {
-  const variantStyles = {
-    default: {
-      bg: "white",
-      border: "var(--pa-border)",
-      iconColor: "var(--pa-gray)",
-    },
+  const defaultStyle = {
+    bg: "white",
+    border: "var(--pa-border)",
+    iconColor: "var(--pa-gray)",
+    valueColor: "var(--pa-dark)",
+    labelColor: "var(--pa-gray)",
+  };
+  const variantStyles: Record<
+    string,
+    { bg: string; border: string; iconColor: string; valueColor?: string; labelColor?: string }
+  > = {
+    default: defaultStyle,
     success: {
       bg: "#f0fdf4",
       border: "#bbf7d0",
@@ -42,7 +48,7 @@ export function StatCard({
     },
   };
 
-  const styles = variantStyles[variant];
+  const styles = variantStyles[variant] ?? defaultStyle;
 
   return (
     <div

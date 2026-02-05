@@ -87,6 +87,25 @@ Optional:
 
 Once verified, Ads pages proceed normally (create/sync campaigns in that ad account using the system user token).
 
+### Non-technical customer steps (Settings → Meta, Step 3)
+
+The Step 3 UI is written so non-technical customers can complete partner access without confusion:
+
+1. **Copy-paste ready**  
+   Step 3 shows **Partner name** (e.g. “Project Auto”, from `META_PARTNER_NAME`) and **Partner Business Manager ID** (from `META_BUSINESS_MANAGER_ID`) in dedicated rows. A **Copy** button next to the Business Manager ID lets the customer copy the full ID when the server exposes it (e.g. in development or when `META_EXPOSE_FULL_BM_ID_FOR_SETTINGS=true`); otherwise a masked value is shown and copied.
+
+2. **Direct link**  
+   A link to [Meta Business Settings](https://business.facebook.com/settings) is shown so the customer can open the right page.
+
+3. **Explicit instructions**  
+   The UI lists exactly what to do in plain language:
+   - Add partner using the Partner Name and Partner Business Manager ID shown.
+   - Grant access to the selected ad account for the partner.
+   - Grant permission to manage ads and view performance (manage ads + view performance).
+
+4. **Verify**  
+   After completing the steps in Meta, the customer clicks **Verify** in Project Auto. If the Business Manager ID is not configured on the server, a banner “Meta not configured for production” is shown and **Verify** is disabled.
+
 ## API behaviour
 
 - **Token resolution** (`getEffectiveMetaAccessToken(customerId)`):

@@ -22,7 +22,7 @@ function extractDomainFromEmail(email: string): string | null {
   const match = trimmed.match(/@([^@]+)$/);
   if (!match) return null;
   const domain = match[1];
-  if (COMMON_EMAIL_PROVIDERS.has(domain)) return null;
+  if (domain === undefined || COMMON_EMAIL_PROVIDERS.has(domain)) return null;
   return domain;
 }
 

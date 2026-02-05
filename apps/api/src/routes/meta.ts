@@ -40,7 +40,11 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
     const systemUserConfigured = !!getSystemUserAccessToken();
     const metaPartnerName = process.env["META_PARTNER_NAME"] ?? "Project Auto";
     const rawBmId = process.env["META_BUSINESS_MANAGER_ID"];
-    const metaBusinessManagerId = rawBmId ? (rawBmId.length > 8 ? `****${rawBmId.slice(-4)}` : "****") : null;
+    const metaBusinessManagerIdMasked = rawBmId ? (rawBmId.length > 8 ? `****${rawBmId.slice(-4)}` : "****") : null;
+    const exposeFullBmId =
+      process.env["NODE_ENV"] === "development" ||
+      process.env["META_EXPOSE_FULL_BM_ID_FOR_SETTINGS"] === "true";
+    const metaBusinessManagerIdFull = exposeFullBmId && rawBmId ? rawBmId : null;
 
     if (!connection) {
       return reply.send({
@@ -54,7 +58,8 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
         partnerAccessError: null,
         systemUserConfigured,
         metaPartnerName,
-        metaBusinessManagerId,
+        metaBusinessManagerId: metaBusinessManagerIdMasked,
+        metaBusinessManagerIdFull: metaBusinessManagerIdFull ?? undefined,
       });
     }
 
@@ -70,7 +75,8 @@ export async function metaRoutes(app: FastifyInstance): Promise<void> {
       partnerAccessError: connection.partnerAccessError ?? null,
       systemUserConfigured,
       metaPartnerName,
-      metaBusinessManagerId,
+      metaBusinessManagerId: metaBusinessManagerIdMasked,
+      metaBusinessManagerIdFull: metaBusinessManagerIdFull ?? undefined,
     });
   });
 

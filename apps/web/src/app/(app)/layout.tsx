@@ -7,8 +7,11 @@ import { apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useI18n } from "@/lib/i18n/context";
+import { useOnboardingStatus } from "@/lib/onboarding/useOnboardingStatus";
 import { LayoutDashboard, Package, Play, DollarSign, LayoutTemplate, Settings as SettingsIcon, ChevronDown, Megaphone, BarChart3 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+
+const ONBOARDING_COMPLETE_KEY = "onboardingComplete";
 
 const NAV_LINKS = [
   { href: "/dashboard", key: "dashboard" as const, icon: LayoutDashboard },
@@ -28,6 +31,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const customerId = auth.status === "authenticated" ? auth.user?.customerId ?? null : null;
+  const { result: onboardingResult, loading: onboardingLoading } = useOnboardingStatus(customerId);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -45,6 +50,28 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   if (auth.status === "unauthenticated") {
     if (typeof window !== "undefined") router.replace("/login");
     return <LoadingSpinner />;
+  }
+
+  const isOnboardingPath = pathname?.startsWith("/onboarding") ?? false;
+  const isSettingsPath = pathname === "/settings";
+  const onboardingCompleteFromStorage =
+    typeof window !== "undefined" && window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true";
+  const onboardingComplete = onboardingResult?.overallComplete ?? onboardingCompleteFromStorage;
+
+  if (isOnboardingPath) {
+    return <div style={{ minHeight: "100vh", background: "var(--pa-gray-bg)" }}>{children}</div>;
+  }
+
+  if (onboardingLoading && !onboardingCompleteFromStorage) {
+    return <LoadingSpinner />;
+  }
+  if (!onboardingComplete && !isSettingsPath) {
+    if (typeof window !== "undefined") router.replace("/onboarding/start");
+    return <LoadingSpinner />;
+  }
+
+  if (onboardingResult?.overallComplete && typeof window !== "undefined") {
+    window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
   }
 
   const user = auth.user;

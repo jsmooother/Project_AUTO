@@ -25,7 +25,8 @@ export function LanguageSwitcher() {
     { code: "en", label: "English", flag: "🇬🇧" },
   ];
 
-  const currentLang = languages.find((l) => l.code === language) || languages[0];
+  const fallbackLang = languages[0];
+  const currentLang = languages.find((l) => l.code === language) ?? fallbackLang ?? { code: "sv" as Language, label: "Svenska", flag: "🇸🇪" };
 
   return (
     <div ref={menuRef} style={{ position: "relative" }}>

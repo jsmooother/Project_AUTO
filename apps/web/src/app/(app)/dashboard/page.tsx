@@ -1,75 +1,76 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { AlertTriangle, Globe, RefreshCw, CheckCircle2 } from "lucide-react";
+import { useI18n } from "@/lib/i18n/context";
+import { BarChart3, DollarSign, Megaphone, TrendingUp, Package, AlertTriangle } from "lucide-react";
 
-function MetaIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg viewBox="0 0 36 36" width={size} height={size} fill="currentColor">
-      <path d="M20.3 12.3c-1.2-2.2-2.8-3.7-4.6-3.7-3.1 0-5.4 3.9-5.4 9.4 0 2.4.4 4.5 1.2 6.1 1.2 2.2 2.8 3.7 4.6 3.7 3.1 0 5.4-3.9 5.4-9.4 0-2.4-.4-4.5-1.2-6.1zm10.4 3.5c-2.5 0-4.6 2.4-6.3 6.2-.7 1.7-1.3 3.5-1.6 5.4 1.6-1.5 3.5-3.8 5-6.7 1.1-2.1 1.9-4.1 2.3-5.8.2-.5.3-.8.4-1.1h.2zm-16.2 9.9c1.6-1.5 3.5-3.8 5-6.7 1.1-2.1 1.9-4.1 2.3-5.8.2-.5.3-.8.4-1.1h.2c-2.5 0-4.6 2.4-6.3 6.2-.7 1.7-1.3 3.5-1.6 5.4z" />
-    </svg>
-  );
+const DASHBOARD_INVENTORY_COUNT_KEY = "dashboard_last_inventory_count";
+
+interface PerformanceSummary {
+  totals?: { impressions?: number; clicks?: number; ctr?: number; reach?: number };
+  mode?: string;
+  hint?: string;
 }
 
-interface OnboardingStatus {
-  status: "not_started" | "in_progress" | "completed";
-  companyInfoCompleted: boolean;
-  budgetInfoCompleted: boolean;
+interface BillingStatus {
+  balanceSek?: number;
+  creditsConsumedSekLast7d?: number;
+  creditsConsumedSekMtd?: number;
+  hint?: string;
 }
 
-interface MetaConnectionStatus {
-  status: "disconnected" | "connected" | "error";
-  metaUserId: string | null;
-  adAccountId: string | null;
-  scopes: string[] | null;
+interface AdsStatus {
+  prerequisites?: { inventory?: { count?: number }; meta?: { ok?: boolean } };
+  settings?: { lastSyncedAt?: string | null; status?: string } | null;
+  objects?: { status?: string; campaignId?: string } | null;
+  lastRuns?: { status: string; finishedAt?: string | null }[];
 }
 
 function DashboardContent() {
   const { auth } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
-  const [websiteSource, setWebsiteSource] = useState<{ websiteUrl: string } | null>(null);
-  const [itemsCount, setItemsCount] = useState(0);
-  const [templateConfig, setTemplateConfig] = useState<{ id: string; status: string } | null>(null);
-  const [metaConnection, setMetaConnection] = useState<MetaConnectionStatus | null>(null);
-  const [runNowLoading, setRunNowLoading] = useState(false);
-  const [runNowError, setRunNowError] = useState<string | null>(null);
-  const [runNowHint, setRunNowHint] = useState<string | null>(null);
-  const [metaLoading, setMetaLoading] = useState(false);
-  const [metaError, setMetaError] = useState<string | null>(null);
+  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
+
+  const [performance, setPerformance] = useState<PerformanceSummary | null>(null);
+  const [billing, setBilling] = useState<BillingStatus | null>(null);
+  const [adsStatus, setAdsStatus] = useState<AdsStatus | null>(null);
+  const [inventoryCount, setInventoryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
-  const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
-  const metaEnabled = process.env.NEXT_PUBLIC_META_ENABLED === "true";
+  const prevInventoryCountRef = useRef<number | null>(null);
 
   const load = () => {
     if (!customerId) return;
     setLoading(true);
     setError(null);
     Promise.all([
-      apiGet<OnboardingStatus>("/onboarding/status", { customerId }),
-      apiGet<{ data: unknown[]; source?: { websiteUrl: string } }>("/inventory/items", { customerId }),
-      apiGet<{ id: string; status: string } | null>("/templates/config", { customerId }),
-      apiGet<MetaConnectionStatus>("/meta/status", { customerId }),
+      apiGet<PerformanceSummary>("/performance/summary?preset=last_7d", { customerId }),
+      apiGet<BillingStatus>("/billing/status", { customerId }),
+      apiGet<AdsStatus>("/ads/status", { customerId }),
+      apiGet<{ data: unknown[] }>("/inventory/items", { customerId }),
     ])
-      .then(([onb, inv, cfg, meta]) => {
-        if (onb.ok) setOnboardingStatus(onb.data);
+      .then(([perf, bill, ads, inv]) => {
+        if (perf.ok) setPerformance(perf.data);
+        if (bill.ok) setBilling(bill.data);
+        if (ads.ok) setAdsStatus(ads.data);
         if (inv.ok) {
-          setWebsiteSource(inv.data.source ?? null);
-          setItemsCount(Array.isArray(inv.data.data) ? inv.data.data.length : 0);
+          const count = Array.isArray(inv.data.data) ? inv.data.data.length : 0;
+          setInventoryCount(count);
+          if (typeof window !== "undefined") {
+            const prev = window.localStorage.getItem(DASHBOARD_INVENTORY_COUNT_KEY);
+            const prevNum = prev != null ? parseInt(prev, 10) : null;
+            if (prevNum !== null && count > prevNum) prevInventoryCountRef.current = prevNum;
+            window.localStorage.setItem(DASHBOARD_INVENTORY_COUNT_KEY, String(count));
+          }
         }
-        if (cfg.ok) setTemplateConfig(cfg.data ?? null);
-        if (meta.ok) setMetaConnection(meta.data);
-        if (!onb.ok && !inv.ok && !cfg.ok && !meta.ok) setError("Failed to load dashboard data");
       })
       .catch(() => setError("Failed to load dashboard"))
       .finally(() => setLoading(false));
@@ -79,38 +80,12 @@ function DashboardContent() {
     if (customerId) load();
   }, [customerId]);
 
-  // Handle OAuth callback query params
   useEffect(() => {
     const metaParam = searchParams.get("meta");
-    if (metaParam === "connected") {
-      // Reload Meta status after successful connection
-      if (customerId) {
-        apiGet<MetaConnectionStatus>("/meta/status", { customerId }).then((res) => {
-          if (res.ok) setMetaConnection(res.data);
-        });
-      }
-      // Clear query param
-      router.replace("/dashboard");
-    } else if (metaParam === "error") {
-      const errorMsg = searchParams.get("error") || "Meta connection failed";
-      setMetaError(errorMsg);
+    if (metaParam === "connected" || metaParam === "error") {
       router.replace("/dashboard");
     }
-  }, [searchParams, customerId, router]);
-
-  const handleRunNow = async () => {
-    if (!customerId) return;
-    setRunNowError(null);
-    setRunNowHint(null);
-    setRunNowLoading(true);
-    const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
-    setRunNowLoading(false);
-    if (res.ok) router.push("/runs");
-    else {
-      setRunNowError(res.error);
-      setRunNowHint(res.errorDetail?.hint ?? null);
-    }
-  };
+  }, [searchParams, router]);
 
   if (auth.status !== "authenticated" || loading) {
     return <LoadingSpinner />;
@@ -118,217 +93,119 @@ function DashboardContent() {
 
   if (error) {
     return (
-      <>
+      <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         <ErrorBanner message={error} onRetry={load} />
-        <p>Go to <Link href="/dashboard">Dashboard</Link> to retry.</p>
-      </>
+      </div>
     );
   }
 
-  const websiteConnected = !!websiteSource;
-  const hasInventory = itemsCount > 0;
-  const metaConnected = metaConnection?.status === "connected";
-  const isSetupComplete = websiteConnected && hasInventory; // Automation ready when website + inventory
-  const needsOnboarding = onboardingStatus && !onboardingStatus.companyInfoCompleted;
-
-  const handleMetaConnect = async () => {
-    if (!customerId) return;
-    setMetaLoading(true);
-    setMetaError(null);
-
-    // Use real OAuth if enabled, otherwise use dev-connect
-    if (metaEnabled) {
-      try {
-        const res = await apiGet<{ url: string }>("/meta/oauth/connect-url", { customerId });
-        if (res.ok && res.data.url) {
-          window.location.href = res.data.url;
-          return; // Don't set loading to false, we're redirecting
-        } else if (!res.ok) {
-          setMetaError(res.error ?? "Failed to get OAuth URL");
-        }
-      } catch (err) {
-        setMetaError("Failed to start OAuth flow");
-      }
-    } else {
-      // Dev mode: use fake connect
-      const res = await apiPost<MetaConnectionStatus>("/meta/dev-connect", undefined, { customerId });
-      if (res.ok) {
-        setMetaConnection(res.data);
-      } else {
-        setMetaError(res.error);
-      }
-    }
-    setMetaLoading(false);
-  };
-
-  const handleMetaDisconnect = async () => {
-    if (!customerId) return;
-    setMetaLoading(true);
-    setMetaError(null);
-    const res = await apiPost<{ success: boolean }>("/meta/disconnect", undefined, { customerId });
-    setMetaLoading(false);
-    if (res.ok) {
-      setMetaConnection({ status: "disconnected", metaUserId: null, adAccountId: null, scopes: null });
-    } else {
-      setMetaError(res.error);
-    }
-  };
-
-  // Only show action-required banner when there's an actual problem with clear next step
-  const setupProblem: { type: "no_website" | "no_inventory"; message: string; action: string; href: string } | null =
-    !websiteConnected
-      ? { type: "no_website", message: "Connect your website to start detecting inventory and running automated campaigns.", action: "Connect website", href: "/connect-website" }
-      : websiteConnected && !hasInventory
-        ? { type: "no_inventory", message: "Run a crawl to detect listings from your website.", action: "Run crawl", href: "/runs" }
-        : null;
+  const balanceSek = billing?.balanceSek ?? 0;
+  const creditsLast7d = billing?.creditsConsumedSekLast7d ?? 0;
+  const creditsMtd = billing?.creditsConsumedSekMtd ?? 0;
+  const runwayDays = creditsLast7d > 0 ? balanceSek / (creditsLast7d / 7) : 999;
+  const ctr = performance?.totals?.ctr ?? 0;
+  const impressions = performance?.totals?.impressions ?? 0;
+  const hasCampaign = !!adsStatus?.objects?.campaignId;
+  const metaConnected = !!adsStatus?.prerequisites?.meta?.ok;
+  const showInventoryIncreased =
+    prevInventoryCountRef.current !== null && inventoryCount > prevInventoryCountRef.current;
+  const lastRun = adsStatus?.lastRuns?.[0];
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-      {/* Header */}
       <div style={{ marginBottom: "2rem" }}>
-        <h1
-          style={{
-            fontSize: "1.875rem",
-            fontWeight: 600,
-            letterSpacing: "-0.025em",
-            marginBottom: "0.5rem",
-            color: "var(--pa-dark)",
-          }}
-        >
-          Dashboard
+        <h1 style={{ fontSize: "1.875rem", fontWeight: 600, letterSpacing: "-0.025em", marginBottom: "0.5rem", color: "var(--pa-dark)" }}>
+          {t.dashboard.title}
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
-          Monitor your automation status and inventory
-        </p>
+        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>{t.dashboard.subtitle}</p>
       </div>
 
-      {/* Onboarding redirect */}
-      {needsOnboarding && (
+      {/* Upsell banners */}
+      {runwayDays < 7 && runwayDays > 0 && (
         <div
           style={{
-            marginBottom: "1.5rem",
-            padding: "1rem 1.5rem",
+            marginBottom: "1rem",
+            padding: "1rem 1.25rem",
             background: "#fef3c7",
             border: "1px solid #fcd34d",
-            borderRadius: "var(--pa-radius-lg)",
+            borderRadius: "var(--pa-radius)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
           }}
         >
-          <p style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-            Complete onboarding to get started
-          </p>
-          <Link
-            href="/onboarding/company"
-            style={{
-              display: "inline-block",
-              padding: "0.5rem 1rem",
-              background: "var(--pa-dark)",
-              color: "white",
-              borderRadius: "6px",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-            }}
-          >
-            Add company information →
-          </Link>
+          <AlertTriangle size={20} color="#92400e" />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 500, fontSize: "0.875rem", color: "#92400e" }}>{t.dashboard.lowCreditsRunway}</p>
+            <Link href="/billing" style={{ fontSize: "0.875rem", color: "var(--pa-blue)", fontWeight: 500 }}>
+              {t.dashboard.topUpCta} →
+            </Link>
+          </div>
         </div>
       )}
-
-      {/* Action required – only when there's an actual problem */}
-      {setupProblem && !needsOnboarding && (
+      {ctr > 2.5 && runwayDays > 10 && (
         <div
           style={{
-            marginBottom: "1.5rem",
-            padding: "1.5rem",
-            background: "#fef9c3",
-            border: "1px solid #fde047",
-            borderRadius: "var(--pa-radius-lg)",
+            marginBottom: "1rem",
+            padding: "1rem 1.25rem",
+            background: "#d1fae5",
+            border: "1px solid #a7f3d0",
+            borderRadius: "var(--pa-radius)",
             display: "flex",
-            gap: "1rem",
-            alignItems: "flex-start",
+            alignItems: "center",
+            gap: "0.75rem",
           }}
         >
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "#fef08a",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <AlertTriangle style={{ width: 20, height: 20, color: "#ca8a04" }} />
-          </div>
+          <TrendingUp size={20} color="#059669" />
           <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-              <h3 style={{ fontWeight: 600, fontSize: "1rem" }}>
-                {setupProblem.type === "no_website" ? "Connect your website" : "No inventory yet"}
-              </h3>
-              <span
-                style={{
-                  padding: "0.2rem 0.5rem",
-                  background: "#ea580c",
-                  color: "white",
-                  borderRadius: 4,
-                  fontSize: "0.75rem",
-                  fontWeight: 500,
-                }}
-              >
-                Action required
-              </span>
-            </div>
-            <p style={{ fontSize: "0.875rem", color: "#374151", marginBottom: "0.75rem" }}>
-              {setupProblem.message}
-            </p>
-            {setupProblem.type === "no_inventory" ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleRunNow}
-                  disabled={runNowLoading}
-                  style={{
-                    display: "inline-block",
-                    padding: "0.375rem 0.75rem",
-                    background: "var(--pa-dark)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                    cursor: runNowLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {runNowLoading ? "Starting…" : setupProblem.action}
-                </button>
-                {(runNowError || runNowHint) && (
-                  <div style={{ marginTop: "0.75rem" }}>
-                    <ErrorBanner message={runNowError ?? ""} hint={runNowHint ?? undefined} />
-                  </div>
-                )}
-              </>
-            ) : (
-              <Link
-                href={setupProblem.href}
-                style={{
-                  display: "inline-block",
-                  padding: "0.375rem 0.75rem",
-                  background: "var(--pa-dark)",
-                  color: "white",
-                  borderRadius: "6px",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                }}
-              >
-                {setupProblem.action}
-              </Link>
-            )}
+            <p style={{ fontWeight: 500, fontSize: "0.875rem", color: "#065f46" }}>{t.dashboard.scaleSuggestion}</p>
+            <Link href="/billing" style={{ fontSize: "0.875rem", color: "var(--pa-blue)", fontWeight: 500 }}>
+              {t.nav.billing} →
+            </Link>
+          </div>
+        </div>
+      )}
+      {showInventoryIncreased && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem 1.25rem",
+            background: "#dbeafe",
+            border: "1px solid #93c5fd",
+            borderRadius: "var(--pa-radius)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <Package size={20} color="#2563eb" />
+          <p style={{ fontWeight: 500, fontSize: "0.875rem", color: "#1e40af" }}>{t.dashboard.inventoryIncreased}</p>
+        </div>
+      )}
+      {impressions === 0 && metaConnected && hasCampaign && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "1rem 1.25rem",
+            background: "#f3f4f6",
+            border: "1px solid var(--pa-border)",
+            borderRadius: "var(--pa-radius)",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <Megaphone size={20} color="var(--pa-gray)" />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 500, fontSize: "0.875rem", color: "var(--pa-gray)" }}>{t.dashboard.campaignPausedHint}</p>
+            <Link href="/ads" style={{ fontSize: "0.875rem", color: "var(--pa-blue)", fontWeight: 500 }}>
+              {t.nav.ads} →
+            </Link>
           </div>
         </div>
       )}
 
-      {/* System status */}
+      {/* Performance snapshot */}
       <div
         style={{
           marginBottom: "1.5rem",
@@ -339,555 +216,79 @@ function DashboardContent() {
         }}
       >
         <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--pa-border)" }}>
-          <h2 style={{ fontWeight: 600, fontSize: "1rem" }}>System status</h2>
+          <h2 style={{ fontWeight: 600, fontSize: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <BarChart3 size={18} />
+            {t.dashboard.performanceSnapshot}
+          </h2>
+        </div>
+        <div style={{ padding: "1.5rem", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "1.5rem" }}>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginBottom: 4 }}>{t.dashboard.impressions}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{performance?.totals?.impressions ?? 0}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginBottom: 4 }}>{t.dashboard.clicks}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{performance?.totals?.clicks ?? 0}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginBottom: 4 }}>{t.dashboard.ctr}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{typeof performance?.totals?.ctr === "number" ? `${performance.totals.ctr}%` : "—"}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginBottom: 4 }}>{t.dashboard.reach}</div>
+            <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{performance?.totals?.reach ?? 0}</div>
+          </div>
+        </div>
+        {performance?.hint && (
+          <div style={{ padding: "0 1.5rem 1rem", fontSize: "0.75rem", color: "var(--pa-gray)" }}>{performance.hint}</div>
+        )}
+      </div>
+
+      {/* Credits + Ads status row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.5rem" }}>
+        <div
+          style={{
+            background: "white",
+            border: "1px solid var(--pa-border)",
+            borderRadius: "var(--pa-radius-lg)",
+            padding: "1.25rem 1.5rem",
+          }}
+        >
+          <h3 style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <DollarSign size={18} />
+            {t.dashboard.creditsRemaining}
+          </h3>
+          <p style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: 4 }}>{balanceSek} SEK</p>
+          <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+            {t.dashboard.creditsUsedMtd}: {creditsMtd} SEK
+          </p>
+          <Link href="/billing" style={{ fontSize: "0.875rem", color: "var(--pa-blue)", marginTop: "0.5rem", display: "inline-block" }}>
+            {t.nav.billing} →
+          </Link>
         </div>
         <div
           style={{
-            padding: "1.5rem",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "1.5rem",
+            background: "white",
+            border: "1px solid var(--pa-border)",
+            borderRadius: "var(--pa-radius-lg)",
+            padding: "1.25rem 1.5rem",
           }}
         >
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "var(--pa-radius)",
-                background: "#dbeafe",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Globe style={{ width: 20, height: 20, color: "#2563eb" }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Website</div>
-              {websiteConnected ? (
-                <>
-                  <span
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.25rem",
-                      padding: "0.2rem 0.5rem",
-                      background: "#d1fae5",
-                      color: "#065f46",
-                      border: "1px solid #a7f3d0",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    <CheckCircle2 style={{ width: 12, height: 12 }} />
-                    Connected
-                  </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    {websiteSource?.websiteUrl}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span
-                    style={{
-                      padding: "0.2rem 0.5rem",
-                      background: "#f3f4f6",
-                      color: "var(--pa-gray)",
-                      border: "1px solid var(--pa-border)",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
-                      display: "inline-block",
-                    }}
-                  >
-                    Not connected
-                  </span>
-                  <Link
-                    href="/connect-website"
-                    style={{ fontSize: "0.875rem", color: "var(--pa-blue)", fontWeight: 500 }}
-                  >
-                    Connect now
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "var(--pa-radius)",
-                background: "#dbeafe",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Meta Ads</div>
-              {metaError && (
-                <div style={{ fontSize: "0.75rem", color: "#dc2626", marginBottom: "0.5rem" }}>
-                  {metaError}
-                </div>
-              )}
-              {metaEnabled || allowDevMeta ? (
-                metaConnected ? (
-                  <>
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.25rem",
-                        padding: "0.2rem 0.5rem",
-                        background: "#d1fae5",
-                        color: "#065f46",
-                        border: "1px solid #a7f3d0",
-                        borderRadius: 4,
-                        fontSize: "0.75rem",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      <CheckCircle2 style={{ width: 12, height: 12 }} />
-                      Connected
-                    </span>
-                    <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.5rem" }}>
-                      {metaConnection?.adAccountId ? `Account: ${metaConnection.adAccountId}` : "Connected"}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleMetaDisconnect}
-                      disabled={metaLoading}
-                      style={{
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.75rem",
-                        border: "1px solid var(--pa-border)",
-                        borderRadius: 4,
-                        background: "white",
-                        cursor: metaLoading ? "not-allowed" : "pointer",
-                        color: "var(--pa-gray)",
-                      }}
-                    >
-                      {metaLoading ? "Disconnecting..." : "Disconnect"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span
-                      style={{
-                        padding: "0.2rem 0.5rem",
-                        background: "#f3f4f6",
-                        color: "var(--pa-gray)",
-                        border: "1px solid var(--pa-border)",
-                        borderRadius: 4,
-                        fontSize: "0.75rem",
-                        marginBottom: "0.5rem",
-                        display: "inline-block",
-                      }}
-                    >
-                      Not connected
-                    </span>
-                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                      {allowDevMeta && (
-                        <button
-                          type="button"
-                          onClick={handleMetaConnect}
-                          disabled={metaLoading}
-                          style={{
-                            padding: "0.5rem 1rem",
-                            fontSize: "0.875rem",
-                            border: "1px solid var(--pa-border)",
-                            borderRadius: 6,
-                            background: metaLoading ? "#d1d5db" : "#fef3c7",
-                            cursor: metaLoading ? "not-allowed" : "pointer",
-                            color: "#92400e",
-                            fontWeight: 500,
-                          }}
-                        >
-                          {metaLoading ? "Connecting..." : "🔧 Dev: Fake Connect"}
-                        </button>
-                      )}
-                      {metaEnabled && (
-                        <button
-                          type="button"
-                          onClick={handleMetaConnect}
-                          disabled={metaLoading}
-                          style={{
-                            padding: "0.5rem 1rem",
-                            fontSize: "0.875rem",
-                            border: "1px solid var(--pa-border)",
-                            borderRadius: 6,
-                            background: metaLoading ? "#d1d5db" : "var(--pa-blue)",
-                            cursor: metaLoading ? "not-allowed" : "pointer",
-                            color: "white",
-                            fontWeight: 500,
-                          }}
-                        >
-                          {metaLoading ? "Connecting..." : "Connect Meta"}
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )
-              ) : null}
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "0.75rem", alignItems: "flex-start" }}>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: "var(--pa-radius)",
-                background: "#d1fae5",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <RefreshCw style={{ width: 20, height: 20, color: "#059669" }} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Automation</div>
-              {isSetupComplete ? (
-                <>
-                  <span
-                    style={{
-                      padding: "0.2rem 0.5rem",
-                      background: "#059669",
-                      color: "white",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
-                      display: "inline-block",
-                    }}
-                  >
-                    Active
-                  </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    Nightly sync enabled
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span
-                    style={{
-                      padding: "0.2rem 0.5rem",
-                      background: "#f3f4f6",
-                      color: "var(--pa-gray)",
-                      border: "1px solid var(--pa-border)",
-                      borderRadius: 4,
-                      fontSize: "0.75rem",
-                      marginBottom: "0.25rem",
-                      display: "inline-block",
-                    }}
-                  >
-                    Inactive
-                  </span>
-                  <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-                    Complete setup to activate
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+          <h3 style={{ fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <Megaphone size={18} />
+            {t.dashboard.adsStatus}
+          </h3>
+          <p style={{ fontSize: "0.875rem", marginBottom: 4 }}>
+            {adsStatus?.objects?.status ? String(adsStatus.objects.status) : "—"}
+          </p>
+          <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+            {t.dashboard.lastSync}: {lastRun?.finishedAt ? new Date(lastRun.finishedAt).toLocaleDateString() : "—"}
+          </p>
+          <Link href="/ads" style={{ fontSize: "0.875rem", color: "var(--pa-blue)", marginTop: "0.5rem", display: "inline-block" }}>
+            {t.nav.ads} →
+          </Link>
         </div>
       </div>
-
-      {/* Get started – steps reflect actual progress */}
-      <div
-        style={{
-          background: "white",
-          border: "1px solid var(--pa-border)",
-          borderRadius: "var(--pa-radius-lg)",
-          overflow: "hidden",
-        }}
-      >
-        <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid var(--pa-border)" }}>
-          <h2 style={{ fontWeight: 600, fontSize: "1rem" }}>Get started</h2>
-        </div>
-        <div style={{ padding: "1.5rem" }}>
-          {/* Step 1: Connect website – done when connected */}
-          <div
-            style={{
-              display: "flex",
-              gap: "1rem",
-              alignItems: "flex-start",
-              padding: "1rem",
-              border: "1px solid var(--pa-border)",
-              borderRadius: "var(--pa-radius)",
-              marginBottom: "1rem",
-              opacity: websiteConnected ? 0.7 : 1,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: websiteConnected ? "#d1fae5" : "#dbeafe",
-                color: websiteConnected ? "#059669" : "#2563eb",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                flexShrink: 0,
-              }}
-            >
-              {websiteConnected ? <CheckCircle2 size={18} /> : "1"}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Connect your website</div>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: websiteConnected ? 0 : "0.75rem" }}>
-                Add your inventory website URL so we can detect your listings
-              </p>
-              {!websiteConnected && (
-                <Link
-                  href="/connect-website"
-                  prefetch={false}
-                  style={{
-                    display: "inline-block",
-                    padding: "0.375rem 0.75rem",
-                    background: "var(--pa-dark)",
-                    color: "white",
-                    borderRadius: "6px",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                  }}
-                >
-                  Connect Website
-                </Link>
-              )}
-              {websiteConnected && (
-                <span style={{ fontSize: "0.875rem", color: "#059669" }}>Done</span>
-              )}
-            </div>
-          </div>
-
-          {/* Step 2: Run inventory sync – active when website connected, done when has inventory */}
-          <div
-            style={{
-              display: "flex",
-              gap: "1rem",
-              alignItems: "flex-start",
-              padding: "1rem",
-              border: "1px solid var(--pa-border)",
-              borderRadius: "var(--pa-radius)",
-              marginBottom: "1rem",
-              opacity: !websiteConnected ? 0.5 : 1,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: hasInventory ? "#d1fae5" : websiteConnected ? "#dbeafe" : "#f3f4f6",
-                color: hasInventory ? "#059669" : websiteConnected ? "#2563eb" : "var(--pa-gray)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                flexShrink: 0,
-              }}
-            >
-              {hasInventory ? <CheckCircle2 size={18} /> : "2"}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Run inventory sync</div>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: hasInventory ? 0 : "0.75rem" }}>
-                Run a crawl to scan your site and detect listings (stub crawl adds mock data for testing)
-              </p>
-              {websiteConnected && !hasInventory && (
-                <button
-                  type="button"
-                  onClick={handleRunNow}
-                  disabled={runNowLoading}
-                  style={{
-                    display: "inline-block",
-                    padding: "0.375rem 0.75rem",
-                    background: runNowLoading ? "#d1d5db" : "var(--pa-dark)",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                    cursor: runNowLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {runNowLoading ? "Starting…" : "Run crawl"}
-                </button>
-              )}
-              {hasInventory && (
-                <span style={{ fontSize: "0.875rem", color: "#059669" }}>Done ({itemsCount} items)</span>
-              )}
-            </div>
-          </div>
-
-          {/* Step 3: Launch automation – active when has inventory */}
-          <div
-            style={{
-              display: "flex",
-              gap: "1rem",
-              alignItems: "flex-start",
-              padding: "1rem",
-              border: "1px solid var(--pa-border)",
-              borderRadius: "var(--pa-radius)",
-              opacity: !hasInventory ? 0.5 : 1,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: templateConfig?.status === "approved" ? "#d1fae5" : hasInventory ? "#dbeafe" : "#f3f4f6",
-                color: templateConfig?.status === "approved" ? "#059669" : hasInventory ? "#2563eb" : "var(--pa-gray)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 600,
-                fontSize: "0.875rem",
-                flexShrink: 0,
-              }}
-            >
-              {templateConfig?.status === "approved" ? <CheckCircle2 size={18} /> : "3"}
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, marginBottom: "0.25rem" }}>Launch automation</div>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "0.75rem" }}>
-                Choose templates, generate previews, and approve to enable campaigns
-              </p>
-              {hasInventory && (
-                <Link
-                  href="/templates"
-                  prefetch={false}
-                  style={{
-                    display: "inline-block",
-                    padding: "0.375rem 0.75rem",
-                    background: "var(--pa-dark)",
-                    color: "white",
-                    borderRadius: "6px",
-                    fontSize: "0.875rem",
-                    fontWeight: 500,
-                  }}
-                >
-                  {templateConfig?.status === "approved" ? "Manage templates" : "Configure templates"}
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Run now (when website connected) */}
-      {websiteConnected && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <div
-            style={{
-              padding: "1.5rem",
-              background: "white",
-              border: "2px solid #bfdbfe",
-              borderRadius: "var(--pa-radius-lg)",
-              display: "flex",
-              gap: "1rem",
-              alignItems: "flex-start",
-            }}
-          >
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "var(--pa-radius)",
-                background: "#dbeafe",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <RefreshCw style={{ width: 24, height: 24, color: "#2563eb" }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ fontWeight: 600, marginBottom: "0.25rem" }}>Run automation now</h3>
-              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
-                Manually trigger a sync to update inventory and refresh campaigns immediately
-              </p>
-              <button
-                type="button"
-                onClick={handleRunNow}
-                disabled={runNowLoading}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 1rem",
-                  background: runNowLoading ? "#d1d5db" : "var(--pa-dark)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "0.875rem",
-                  fontWeight: 500,
-                  cursor: runNowLoading ? "not-allowed" : "pointer",
-                }}
-              >
-                <RefreshCw style={{ width: 16, height: 16 }} />
-                {runNowLoading ? "Starting…" : "Run Now"}
-              </button>
-              {(runNowError || runNowHint) && (
-                <div style={{ marginTop: "0.75rem" }}>
-                  <ErrorBanner message={runNowError ?? ""} hint={runNowHint ?? undefined} />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Templates CTA */}
-      {websiteConnected && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <div
-            style={{
-              padding: "1.5rem",
-              background: "white",
-              border: "1px solid var(--pa-border)",
-              borderRadius: "var(--pa-radius-lg)",
-            }}
-          >
-            <h3 style={{ fontWeight: 600, marginBottom: "0.5rem" }}>Templates</h3>
-            <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: "1rem" }}>
-              {templateConfig
-                ? `Status: ${templateConfig.status.replace("_", " ")}`
-                : "Configure a template to generate ad previews."}
-            </p>
-            <Link
-              href="/templates"
-              style={{
-                display: "inline-block",
-                padding: "0.5rem 1rem",
-                background: "var(--pa-dark)",
-                color: "white",
-                borderRadius: "6px",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
-              {templateConfig ? "Manage templates" : "Choose template"}
-            </Link>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

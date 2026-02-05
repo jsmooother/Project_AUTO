@@ -1,119 +1,111 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
-import { apiPost } from "@/lib/api";
-import { ErrorBanner } from "@/components/ErrorBanner";
+import { apiGet } from "@/lib/api";
+import { useOnboardingStatus } from "@/lib/onboarding/useOnboardingStatus";
+import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
+import { useI18n } from "@/lib/i18n/context";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { DollarSign } from "lucide-react";
 
-export default function BudgetOnboardingPage() {
+const ONBOARDING_COMPLETE_KEY = "onboardingComplete";
+
+export default function OnboardingBudgetPage() {
   const { auth } = useAuth();
+  const { t } = useI18n();
   const router = useRouter();
-  const [monthlyBudgetAmount, setMonthlyBudgetAmount] = useState("");
-  const [budgetCurrency, setBudgetCurrency] = useState("USD");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
+  const { result, loading } = useOnboardingStatus(customerId);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [billingStatus, setBillingStatus] = useState<{
+    ok?: boolean;
+    balanceSek?: number;
+    monthlyPriceSek?: number | null;
+    hint?: string;
+  } | null>(null);
+
+  useEffect(() => {
     if (!customerId) return;
-    const amount = parseFloat(monthlyBudgetAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setError("Please enter a valid budget amount");
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    const res = await apiPost(
-      "/onboarding/budget",
-      { monthlyBudgetAmount: amount, budgetCurrency },
+    apiGet<{ ok?: boolean; balanceSek?: number; monthlyPriceSek?: number | null; hint?: string }>(
+      "/billing/status",
       { customerId }
-    );
-    setLoading(false);
-    if (res.ok) router.push("/dashboard");
-    else setError(res.error);
+    ).then((res) => {
+      if (res.ok) setBillingStatus(res.data);
+    });
+  }, [customerId]);
+
+  const billingOk = result?.billing.status === "ok";
+  const handleContinue = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
+    }
+    router.push("/onboarding/done");
   };
+  const handleBack = () => router.push("/onboarding/ads");
 
   if (auth.status !== "authenticated") return null;
+  if (auth.status === "authenticated" && loading && !result) return <LoadingSpinner />;
 
   return (
-    <>
-      <h1 style={{ marginBottom: "1rem" }}>Budget Information</h1>
-      <p style={{ marginBottom: "1rem", color: "#666" }}>
-        Tell us about your monthly advertising budget
+    <OnboardingShell
+      stepIndex={5}
+      totalSteps={6}
+      primaryLabel={t.onboarding.continue}
+      onPrimary={handleContinue}
+      onBack={handleBack}
+      status={result}
+    >
+      <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.5rem", color: "var(--pa-dark)" }}>
+        {t.onboarding.budgetTitle}
+      </h1>
+      <p style={{ fontSize: "1rem", color: "var(--pa-gray)", marginBottom: "1.5rem" }}>
+        {t.onboarding.budgetDescription}
       </p>
-      {error && <ErrorBanner message={error} />}
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: "500px" }}
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+          marginBottom: "1rem",
+          padding: "1rem",
+          background: "#f9fafb",
+          border: "1px solid var(--pa-border)",
+          borderRadius: "var(--pa-radius)",
+        }}
       >
+        <DollarSign style={{ width: 24, height: 24, color: "var(--pa-gray)" }} />
         <div>
-          <label htmlFor="budgetCurrency" style={{ display: "block", marginBottom: "0.5rem" }}>
-            Currency
-          </label>
-          <select
-            id="budgetCurrency"
-            value={budgetCurrency}
-            onChange={(e) => setBudgetCurrency(e.target.value)}
-            style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-          >
-            <option value="USD">USD ($)</option>
-            <option value="EUR">EUR (€)</option>
-            <option value="GBP">GBP (£)</option>
-            <option value="CAD">CAD (C$)</option>
-          </select>
+          {billingOk && typeof billingStatus?.balanceSek === "number" && (
+            <p style={{ fontWeight: 500, fontSize: "0.875rem" }}>
+              {t.dashboard.creditsRemaining}: {billingStatus.balanceSek} SEK
+            </p>
+          )}
+          {result?.billing.status !== "ok" && (
+            <>
+              <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)", marginBottom: 4 }}>
+                {result?.billing.hint ?? t.onboarding.contactUs}
+              </p>
+              <Link
+                href="/billing"
+                style={{ fontSize: "0.875rem", color: "var(--pa-blue)", textDecoration: "underline" }}
+              >
+                {t.nav.billing} →
+              </Link>
+              <span style={{ marginLeft: "0.5rem", fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+                {t.onboarding.requestProposal}
+              </span>
+            </>
+          )}
         </div>
-        <div>
-          <label htmlFor="monthlyBudgetAmount" style={{ display: "block", marginBottom: "0.5rem" }}>
-            Monthly Budget Amount *
-          </label>
-          <input
-            id="monthlyBudgetAmount"
-            type="number"
-            step="0.01"
-            min="0"
-            value={monthlyBudgetAmount}
-            onChange={(e) => setMonthlyBudgetAmount(e.target.value)}
-            required
-            placeholder="0.00"
-            style={{ width: "100%", padding: "0.5rem", fontSize: "1rem" }}
-          />
-        </div>
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
-            style={{
-              padding: "0.75rem",
-              background: "#e2e8f0",
-              color: "#4a5568",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              flex: 1,
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              padding: "0.75rem",
-              background: loading ? "#cbd5e0" : "#0070f3",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: loading ? "not-allowed" : "pointer",
-              flex: 1,
-            }}
-          >
-            {loading ? "Saving..." : "Save"}
-          </button>
-        </div>
-      </form>
-    </>
+      </div>
+
+      <p style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>
+        You can set up billing now or continue to the dashboard and do it later.
+      </p>
+    </OnboardingShell>
   );
 }

@@ -4,6 +4,8 @@ export interface Translations {
   common: {
     save: string;
     cancel: string;
+    copy: string;
+    copied: string;
     loading: string;
     logout: string;
     error: string;
@@ -111,9 +113,9 @@ export interface Translations {
     meta: {
       step1Optional: string;
       step2SelectAdAccount: string;
-        step3GrantPartnerAccess: string;
-        grantPartnerAccessTitle: string;
-        connectMeta: string;
+      step3GrantPartnerAccess: string;
+      grantPartnerAccessTitle: string;
+      connectMeta: string;
       selectAdAccount: string;
       grantPartnerInstructions: string;
       openMetaBusinessSettings: string;
@@ -125,7 +127,79 @@ export interface Translations {
       partnerAccessVerified: string;
       accessNotGrantedYet: string;
       metaNotConfiguredBanner: string;
+      metaNotConfiguredForProductionBanner: string;
+      step3WhatToDo: string;
+      step3AddPartner: string;
+      step3GrantAccess: string;
+      step3PermissionWording: string;
+      partnerNameLabel: string;
+      partnerBusinessIdLabel: string;
+      copy: string;
+      copied: string;
+      showFull: string;
     };
+  };
+  onboarding: {
+    title: string;
+    step: string;
+    back: string;
+    continue: string;
+    startTitle: string;
+    startDescription: string;
+    getStarted: string;
+    inventoryTitle: string;
+    inventoryDescription: string;
+    websiteUrl: string;
+    runCrawl: string;
+    crawlStarting: string;
+    itemsDetected: string;
+    previewTitle: string;
+    previewDescription: string;
+    approveTemplate: string;
+    metaTitle: string;
+    metaDescription: string;
+    connectMeta: string;
+    selectAdAccount: string;
+    verifyAccess: string;
+    budgetTitle: string;
+    budgetDescription: string;
+    contactUs: string;
+    requestProposal: string;
+    doneTitle: string;
+    doneDescription: string;
+    goToDashboard: string;
+    statusBoxTitle: string;
+    readyToActivate: string;
+    notReadyYet: string;
+    adsTitle: string;
+    adsDescription: string;
+    adsBudgetLabel: string;
+    adsGeoLabel: string;
+    adsRadiusLabel: string;
+    adsFormatsLabel: string;
+    adsCtaLabel: string;
+    saveAndContinue: string;
+    saved: string;
+    saveFailed: string;
+    adsInventoryNote: string;
+  };
+  dashboard: {
+    title: string;
+    subtitle: string;
+    performanceSnapshot: string;
+    impressions: string;
+    clicks: string;
+    ctr: string;
+    reach: string;
+    creditsRemaining: string;
+    creditsUsedMtd: string;
+    adsStatus: string;
+    lastSync: string;
+    lowCreditsRunway: string;
+    topUpCta: string;
+    scaleSuggestion: string;
+    inventoryIncreased: string;
+    campaignPausedHint: string;
   };
 }
 
@@ -134,6 +208,8 @@ export const translations: Record<Language, Translations> = {
     common: {
       save: "Spara",
       cancel: "Avbryt",
+      copy: "Kopiera",
+      copied: "Kopierat",
       loading: "Laddar...",
       logout: "Logga ut",
       error: "Fel",
@@ -255,13 +331,87 @@ export const translations: Record<Language, Translations> = {
         partnerAccessVerified: "Partneråtkomst verifierad. Annonser kan skapas i ditt annonskonto.",
         accessNotGrantedYet: "Åtkomst inte beviljad än.",
         metaNotConfiguredBanner: "Meta är inte konfigurerad för produktion. Sätt META_SYSTEM_USER_ACCESS_TOKEN på servern för att aktivera partnerverifiering.",
+        metaNotConfiguredForProductionBanner: "Meta är inte konfigurerad för produktion. Business Manager-id saknas.",
+        step3WhatToDo: "Gör så här i Meta Business Manager:",
+        step3AddPartner: "Lägg till partner med partnernamnet och Business Manager-id nedan.",
+        step3GrantAccess: "Bevilja åtkomst till det valda annonskontot för partnern.",
+        step3PermissionWording: "Ge behörighet att hantera annonser och se prestanda (manage ads + view performance).",
+        partnerNameLabel: "Partnernamn",
+        partnerBusinessIdLabel: "Partner Business Manager-id",
+        copy: "Kopiera",
+        copied: "Kopierat",
+        showFull: "Visa hela",
       },
+    },
+    onboarding: {
+      title: "Kom igång",
+      step: "Steg",
+      back: "Tillbaka",
+      continue: "Fortsätt",
+      startTitle: "Välkommen till Project Auto",
+      startDescription: "Konfigurera din webbplats, mallar, Meta och budget på några minuter.",
+      getStarted: "Kom igång",
+      inventoryTitle: "Anslut webbplats och lager",
+      inventoryDescription: "Ange webbadressen till din lagerlista och kör en crawl.",
+      websiteUrl: "Webbplats-URL",
+      runCrawl: "Kör crawl",
+      crawlStarting: "Startar…",
+      itemsDetected: "Objekt upptäckta",
+      previewTitle: "Mall och förhandsgranskning",
+      previewDescription: "Välj mall och godkänn förhandsgranskning.",
+      approveTemplate: "Godkänn mall",
+      metaTitle: "Meta och annonskonto",
+      metaDescription: "Anslut Meta, välj annonskonto och verifiera partneråtkomst.",
+      connectMeta: "Anslut Meta",
+      selectAdAccount: "Välj annonskonto",
+      verifyAccess: "Verifiera åtkomst",
+      budgetTitle: "Budget och fakturering",
+      budgetDescription: "Konfigurera din budget eller begär ett förslag.",
+      contactUs: "Kontakta oss",
+      requestProposal: "Begär förslag",
+      doneTitle: "Klart",
+      doneDescription: "Du kan nu använda dashboarden.",
+      goToDashboard: "Gå till dashboard",
+      statusBoxTitle: "Status",
+      readyToActivate: "Redo att aktivera",
+      notReadyYet: "Inte redo än",
+      adsTitle: "Annonsinställningar",
+      adsDescription: "Välj område och format så kan vi skapa kampanjer automatiskt.",
+      adsBudgetLabel: "Månadsbudget (SEK)",
+      adsGeoLabel: "Plats",
+      adsRadiusLabel: "Radie (km)",
+      adsFormatsLabel: "Format",
+      adsCtaLabel: "Uppmaning (CTA)",
+      saveAndContinue: "Spara och fortsätt",
+      saved: "Sparat",
+      saveFailed: "Kunde inte spara",
+      adsInventoryNote: "Baserat på era {count} bilar i lager",
+    },
+    dashboard: {
+      title: "Dashboard",
+      subtitle: "Översikt och status",
+      performanceSnapshot: "Prestanda (senaste 7 dagarna)",
+      impressions: "Visningar",
+      clicks: "Klick",
+      ctr: "CTR",
+      reach: "Räckvidd",
+      creditsRemaining: "Krediter kvar",
+      creditsUsedMtd: "Förbrukade denna månad",
+      adsStatus: "Annonsstatus",
+      lastSync: "Senaste sync",
+      lowCreditsRunway: "Låg kreditkvarvarande. Fyll på eller uppgradera.",
+      topUpCta: "Fyll på / Billing",
+      scaleSuggestion: "Bra prestanda. Överväg att öka budgeten.",
+      inventoryIncreased: "Lagerökning upptäckt.",
+      campaignPausedHint: "Kampanjen kan vara pausad eller i inlärningsläge.",
     },
   },
   en: {
     common: {
       save: "Save",
       cancel: "Cancel",
+      copy: "Copy",
+      copied: "Copied",
       loading: "Loading...",
       logout: "Log out",
       error: "Error",
@@ -383,7 +533,79 @@ export const translations: Record<Language, Translations> = {
         partnerAccessVerified: "Partner access verified. Ads can be created in your ad account.",
         accessNotGrantedYet: "Access not granted yet.",
         metaNotConfiguredBanner: "Meta not configured for production. Set META_SYSTEM_USER_ACCESS_TOKEN on the server to enable partner verification.",
+        metaNotConfiguredForProductionBanner: "Meta not configured for production. Business Manager ID is missing.",
+        step3WhatToDo: "In Meta Business Manager, do the following:",
+        step3AddPartner: "Add partner using the Partner Name and Partner Business Manager ID below.",
+        step3GrantAccess: "Grant access to the selected ad account for the partner.",
+        step3PermissionWording: "Grant permission to manage ads and view performance (manage ads + view performance).",
+        partnerNameLabel: "Partner name",
+        partnerBusinessIdLabel: "Partner Business Manager ID",
+        copy: "Copy",
+        copied: "Copied",
+        showFull: "Show full",
       },
+    },
+    onboarding: {
+      title: "Get started",
+      step: "Step",
+      back: "Back",
+      continue: "Continue",
+      startTitle: "Welcome to Project Auto",
+      startDescription: "Set up your website, templates, Meta and budget in a few minutes.",
+      getStarted: "Get started",
+      inventoryTitle: "Connect website and inventory",
+      inventoryDescription: "Enter your inventory page URL and run a crawl.",
+      websiteUrl: "Website URL",
+      runCrawl: "Run crawl",
+      crawlStarting: "Starting…",
+      itemsDetected: "Items detected",
+      previewTitle: "Template and preview",
+      previewDescription: "Choose a template and approve the preview.",
+      approveTemplate: "Approve template",
+      metaTitle: "Meta and ad account",
+      metaDescription: "Connect Meta, select ad account and verify partner access.",
+      connectMeta: "Connect Meta",
+      selectAdAccount: "Select ad account",
+      verifyAccess: "Verify access",
+      budgetTitle: "Budget and billing",
+      budgetDescription: "Set up your budget or request a proposal.",
+      contactUs: "Contact us",
+      requestProposal: "Request proposal",
+      doneTitle: "All set",
+      doneDescription: "You can now use the dashboard.",
+      goToDashboard: "Go to dashboard",
+      statusBoxTitle: "Status",
+      readyToActivate: "Ready to activate",
+      notReadyYet: "Not ready yet",
+      adsTitle: "Ads settings",
+      adsDescription: "Choose area and formats so we can create campaigns automatically.",
+      adsBudgetLabel: "Monthly budget (SEK)",
+      adsGeoLabel: "Location",
+      adsRadiusLabel: "Radius (km)",
+      adsFormatsLabel: "Formats",
+      adsCtaLabel: "Call-to-action (CTA)",
+      saveAndContinue: "Save and continue",
+      saved: "Saved",
+      saveFailed: "Save failed",
+      adsInventoryNote: "Based on your {count} items in inventory",
+    },
+    dashboard: {
+      title: "Dashboard",
+      subtitle: "Overview and status",
+      performanceSnapshot: "Performance (last 7 days)",
+      impressions: "Impressions",
+      clicks: "Clicks",
+      ctr: "CTR",
+      reach: "Reach",
+      creditsRemaining: "Credits remaining",
+      creditsUsedMtd: "Used this month",
+      adsStatus: "Ads status",
+      lastSync: "Last sync",
+      lowCreditsRunway: "Low credits runway. Top up or upgrade.",
+      topUpCta: "Top up / Billing",
+      scaleSuggestion: "Strong performance. Consider increasing budget.",
+      inventoryIncreased: "Inventory increase detected.",
+      campaignPausedHint: "Campaign may be paused or in learning.",
     },
   },
 };
