@@ -175,6 +175,9 @@ export interface Translations {
     adsDescription: string;
     adsBudgetLabel: string;
     adsGeoLabel: string;
+    adsGeoPlaceholder: string;
+    adsGeoHelper: string;
+    adsSavedButNotConfirmed: string;
     adsRadiusLabel: string;
     adsFormatsLabel: string;
     adsCtaLabel: string;
@@ -379,6 +382,9 @@ export const translations: Record<Language, Translations> = {
       adsDescription: "Välj område och format så kan vi skapa kampanjer automatiskt.",
       adsBudgetLabel: "Månadsbudget (SEK)",
       adsGeoLabel: "Plats",
+      adsGeoPlaceholder: "t.ex. Stockholm",
+      adsGeoHelper: "Vi använder detta som centrum för radien.",
+      adsSavedButNotConfirmed: "Inställningarna sparades men kunde inte bekräftas. Försök igen eller gå vidare om allt ser rätt ut.",
       adsRadiusLabel: "Radie (km)",
       adsFormatsLabel: "Format",
       adsCtaLabel: "Uppmaning (CTA)",
@@ -581,6 +587,9 @@ export const translations: Record<Language, Translations> = {
       adsDescription: "Choose area and formats so we can create campaigns automatically.",
       adsBudgetLabel: "Monthly budget (SEK)",
       adsGeoLabel: "Location",
+      adsGeoPlaceholder: "e.g. Stockholm",
+      adsGeoHelper: "Used as the center for your radius.",
+      adsSavedButNotConfirmed: "Settings were saved but could not be confirmed. Try again or continue if everything looks correct.",
       adsRadiusLabel: "Radius (km)",
       adsFormatsLabel: "Formats",
       adsCtaLabel: "Call-to-action (CTA)",

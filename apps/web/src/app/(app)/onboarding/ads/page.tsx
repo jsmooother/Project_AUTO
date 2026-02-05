@@ -22,6 +22,7 @@ interface AdsSettings {
 
 interface AdsStatusResponse {
   settings?: {
+    id?: string;
     geoMode: string;
     geoCenterText: string | null;
     geoRadiusKm: number | null;
@@ -68,6 +69,7 @@ export default function OnboardingAdsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorHint, setErrorHint] = useState<string | null>(null);
+  const [savedButNotConfirmed, setSavedButNotConfirmed] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -88,11 +90,13 @@ export default function OnboardingAdsPage() {
           budgetOverride: s.budgetOverride,
         });
       }
-      if (adsRes.ok && adsRes.data.prerequisites?.inventory?.count != null) {
-        setInventoryCount(adsRes.data.prerequisites.inventory.count);
-      }
-      if (invRes.ok && Array.isArray(invRes.data.data)) {
-        setInventoryCount(invRes.data.data.length);
+      const prereqCount = adsRes.ok ? adsRes.data.prerequisites?.inventory?.count : undefined;
+      if (prereqCount != null) {
+        setInventoryCount(prereqCount);
+      } else if (!adsRes.ok || prereqCount === undefined) {
+        if (invRes.ok && Array.isArray(invRes.data.data)) {
+          setInventoryCount(invRes.data.data.length);
+        }
       }
       setLoaded(true);
     });
@@ -134,8 +138,16 @@ export default function OnboardingAdsPage() {
     const res = await apiPost("/ads/settings", payload, { customerId });
     setSaving(false);
     if (res.ok) {
-      await refresh();
-      router.push("/onboarding/budget");
+      setError(null);
+      setErrorHint(null);
+      setSavedButNotConfirmed(false);
+      const statusRes = await apiGet<AdsStatusResponse>("/ads/status", { customerId });
+      if (statusRes.ok && statusRes.data.settings?.id) {
+        await refresh();
+        router.push("/onboarding/budget");
+      } else {
+        setSavedButNotConfirmed(true);
+      }
     } else {
       setError(!res.ok ? res.error : t.onboarding.saveFailed);
       setErrorHint(res.errorDetail?.hint ?? null);
@@ -175,6 +187,22 @@ export default function OnboardingAdsPage() {
         </div>
       )}
 
+      {savedButNotConfirmed && (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem 1rem",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: "var(--pa-radius)",
+            fontSize: "0.875rem",
+            color: "#92400e",
+          }}
+        >
+          {t.onboarding.adsSavedButNotConfirmed}
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div>
           <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: 4 }}>
@@ -184,7 +212,7 @@ export default function OnboardingAdsPage() {
             type="text"
             value={settings.geoCenterText ?? ""}
             onChange={(e) => setSettings({ ...settings, geoCenterText: e.target.value || null })}
-            placeholder="t.ex. Stockholm"
+            placeholder={t.onboarding.adsGeoPlaceholder}
             style={{
               width: "100%",
               padding: "0.5rem 0.75rem",
@@ -193,6 +221,9 @@ export default function OnboardingAdsPage() {
               fontSize: "0.875rem",
             }}
           />
+          <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)", marginTop: 4, marginBottom: 0 }}>
+            {t.onboarding.adsGeoHelper}
+          </p>
         </div>
         <div>
           <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: 4 }}>
