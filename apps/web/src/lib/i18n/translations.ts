@@ -10,6 +10,7 @@ export interface Translations {
     logout: string;
     error: string;
     retry: string;
+    tryAgain: string;
     view: string;
     edit: string;
     delete: string;
@@ -178,6 +179,7 @@ export interface Translations {
     adsGeoPlaceholder: string;
     adsGeoHelper: string;
     adsSavedButNotConfirmed: string;
+    continueAnyway: string;
     adsRadiusLabel: string;
     adsFormatsLabel: string;
     adsCtaLabel: string;
@@ -217,6 +219,7 @@ export const translations: Record<Language, Translations> = {
       logout: "Logga ut",
       error: "Fel",
       retry: "Försök igen",
+      tryAgain: "Försök igen",
       view: "Visa",
       edit: "Redigera",
       delete: "Ta bort",
@@ -385,6 +388,7 @@ export const translations: Record<Language, Translations> = {
       adsGeoPlaceholder: "t.ex. Stockholm",
       adsGeoHelper: "Vi använder detta som centrum för radien.",
       adsSavedButNotConfirmed: "Inställningarna sparades men kunde inte bekräftas. Försök igen eller gå vidare om allt ser rätt ut.",
+      continueAnyway: "Fortsätt ändå",
       adsRadiusLabel: "Radie (km)",
       adsFormatsLabel: "Format",
       adsCtaLabel: "Uppmaning (CTA)",
@@ -422,6 +426,7 @@ export const translations: Record<Language, Translations> = {
       logout: "Log out",
       error: "Error",
       retry: "Retry",
+      tryAgain: "Try again",
       view: "View",
       edit: "Edit",
       delete: "Delete",
@@ -590,6 +595,7 @@ export const translations: Record<Language, Translations> = {
       adsGeoPlaceholder: "e.g. Stockholm",
       adsGeoHelper: "Used as the center for your radius.",
       adsSavedButNotConfirmed: "Settings were saved but could not be confirmed. Try again or continue if everything looks correct.",
+      continueAnyway: "Continue anyway",
       adsRadiusLabel: "Radius (km)",
       adsFormatsLabel: "Formats",
       adsCtaLabel: "Call-to-action (CTA)",

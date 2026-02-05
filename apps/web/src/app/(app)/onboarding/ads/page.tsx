@@ -159,11 +159,13 @@ export default function OnboardingAdsPage() {
   if (auth.status !== "authenticated") return null;
   if (auth.status === "authenticated" && !loaded) return <LoadingSpinner />;
 
+  const allowBypass = process.env.NEXT_PUBLIC_ONBOARDING_ALLOW_BYPASS === "true";
+
   return (
     <OnboardingShell
       stepIndex={4}
       totalSteps={6}
-      primaryLabel={t.onboarding.saveAndContinue}
+      primaryLabel={savedButNotConfirmed ? t.common.tryAgain : t.onboarding.saveAndContinue}
       onPrimary={handleSaveAndContinue}
       onBack={handleBack}
       primaryDisabled={!canSave || saving}
@@ -188,18 +190,37 @@ export default function OnboardingAdsPage() {
       )}
 
       {savedButNotConfirmed && (
-        <div
-          style={{
-            marginBottom: "1rem",
-            padding: "0.75rem 1rem",
-            background: "#fef3c7",
-            border: "1px solid #fcd34d",
-            borderRadius: "var(--pa-radius)",
-            fontSize: "0.875rem",
-            color: "#92400e",
-          }}
-        >
-          {t.onboarding.adsSavedButNotConfirmed}
+        <div style={{ marginBottom: "1rem" }}>
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              background: "#fef3c7",
+              border: "1px solid #fcd34d",
+              borderRadius: "var(--pa-radius)",
+              fontSize: "0.875rem",
+              color: "#92400e",
+              marginBottom: allowBypass ? "0.5rem" : 0,
+            }}
+          >
+            {t.onboarding.adsSavedButNotConfirmed}
+          </div>
+          {allowBypass && (
+            <button
+              type="button"
+              onClick={() => router.push("/onboarding/budget")}
+              style={{
+                padding: "0.5rem 1rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "transparent",
+                color: "var(--pa-gray)",
+                cursor: "pointer",
+                fontSize: "0.875rem",
+              }}
+            >
+              {t.onboarding.continueAnyway}
+            </button>
+          )}
         </div>
       )}
 
