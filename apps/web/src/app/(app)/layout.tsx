@@ -5,22 +5,25 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { LanguageProvider, useLanguage } from "@/lib/language";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LayoutDashboard, Package, Play, DollarSign, LayoutTemplate, Settings as SettingsIcon, ChevronDown, Megaphone, BarChart3 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
 const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inventory", label: "Inventory", icon: Package },
-  { href: "/runs", label: "Automation", icon: Play },
-  { href: "/templates", label: "Templates", icon: LayoutTemplate },
-  { href: "/ads", label: "Ads", icon: Megaphone },
-  { href: "/performance", label: "Performance", icon: BarChart3 },
-  { href: "/billing", label: "Billing", icon: DollarSign },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
+  { href: "/dashboard", key: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/inventory", key: "nav.inventory", icon: Package },
+  { href: "/runs", key: "nav.automation", icon: Play },
+  { href: "/templates", key: "nav.templates", icon: LayoutTemplate },
+  { href: "/ads", key: "nav.ads", icon: Megaphone },
+  { href: "/performance", key: "nav.performance", icon: BarChart3 },
+  { href: "/billing", key: "nav.billing", icon: DollarSign },
+  { href: "/settings", key: "nav.settings", icon: SettingsIcon },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { auth, clearAuth } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
   const pathname = usePathname();
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -95,7 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
 
             <nav style={{ display: "flex", alignItems: "center", gap: 2 }}>
-              {NAV_LINKS.map(({ href, label, icon: Icon }) => {
+              {NAV_LINKS.map(({ href, key, icon: Icon }) => {
                 const active = isActive(href);
                 return (
                   <Link
@@ -117,14 +120,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     <Icon style={{ width: 16, height: 16 }} />
-                    {label}
+                    {t(key)}
                   </Link>
                 );
               })}
             </nav>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <LanguageSwitcher />
+            
             <div ref={menuRef} style={{ position: "relative" }}>
               <button
                 type="button"
@@ -190,7 +195,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       textDecoration: "none",
                     }}
                   >
-                    Settings
+                    {t("nav.settings")}
                   </Link>
                   <Link
                     href="/billing"
@@ -203,7 +208,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       textDecoration: "none",
                     }}
                   >
-                    Billing
+                    {t("nav.billing")}
                   </Link>
                   <button
                     type="button"
@@ -220,7 +225,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       color: "var(--pa-dark)",
                     }}
                   >
-                    Log out
+                    {t("nav.logout")}
                   </button>
                 </div>
               )}
@@ -242,5 +247,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main content */}
       <main style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>{children}</main>
     </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <LanguageProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </LanguageProvider>
   );
 }
