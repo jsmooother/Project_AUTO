@@ -11,7 +11,6 @@ import { Wallet, Calendar, Eye, MousePointerClick, TrendingUp, Users } from "luc
 interface BillingPlan {
   billingMode: "time_based" | "impression_based";
   customerMonthlyPrice: number;
-  customerCpmSek?: number;
   pacing: string;
   status: string;
 }
@@ -153,12 +152,6 @@ export default function BillingPage() {
                     {data.plan.customerMonthlyPrice.toLocaleString("sv-SE")} SEK
                   </div>
                 </div>
-                {data.plan.customerCpmSek != null && (
-                  <div>
-                    <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.25rem" }}>CPM (SEK)</div>
-                    <div style={{ fontSize: "1rem", fontWeight: 500 }}>{data.plan.customerCpmSek} SEK</div>
-                  </div>
-                )}
                 <div>
                   <div style={{ fontSize: "0.8rem", color: "#6b7280", marginBottom: "0.25rem" }}>Status</div>
                   <div>

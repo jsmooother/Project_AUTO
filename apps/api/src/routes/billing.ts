@@ -166,7 +166,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         balanceSek,
         billingMode: plan?.billingMode ?? null,
         monthlyPriceSek: plan != null ? Number(plan.customerMonthlyPrice) : null,
-        customerCpmSek: plan?.customerCpmSek != null ? Number(plan.customerCpmSek) : undefined,
         status: plan?.status ?? null,
         deliverySummary,
         creditsConsumedSekLast7d,
@@ -177,7 +176,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
           ? {
               billingMode: plan.billingMode,
               customerMonthlyPrice: Number(plan.customerMonthlyPrice),
-              customerCpmSek: plan.customerCpmSek != null ? Number(plan.customerCpmSek) : undefined,
               pacing: plan.pacing,
               status: plan.status,
             }

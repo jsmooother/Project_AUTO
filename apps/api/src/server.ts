@@ -2,7 +2,7 @@ import "./lib/env.js";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
-import { requireCustomerContext } from "./middleware/customerContext.js";
+import { requireCustomerSession } from "./middleware/customerContext.js";
 import { requireAdminContext } from "./middleware/adminContext.js";
 import { healthRoutes } from "./routes/health.js";
 import { authRoutes } from "./routes/auth.js";
@@ -55,16 +55,25 @@ if (!process.env["COOKIE_SECRET"]) {
   app.log.warn("COOKIE_SECRET is not set; using the insecure default (dev-only).");
 }
 
-app.addHook("preHandler", (request, reply, done) => {
+app.addHook("preHandler", async (request, reply) => {
   const path = request.url?.split("?")[0];
-  if (path === "/health" || path === "/signup" || path?.startsWith("/auth/")) return done();
+  if (path === "/health" || path === "/signup" || path?.startsWith("/auth/")) return;
   // OAuth callback needs session but not customer context (it validates state instead)
-  if (path === "/meta/oauth/callback") return done();
+  if (path === "/meta/oauth/callback") return;
   if (path?.startsWith("/admin/")) {
-    requireAdminContext(request, reply, done);
-    return;
+    return new Promise<void>((resolve, reject) => {
+      requireAdminContext(request, reply, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
   }
-  requireCustomerContext(request, reply, done);
+  return new Promise<void>((resolve, reject) => {
+    requireCustomerSession(request, reply, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 });
 
 app.setErrorHandler((err, request, reply) => {
