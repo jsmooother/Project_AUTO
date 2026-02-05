@@ -119,6 +119,7 @@ export interface Translations {
       connectMeta: string;
       selectAdAccount: string;
       grantPartnerInstructions: string;
+      grantPartnerInstructionsSimplified: string;
       openMetaBusinessSettings: string;
       verifyAccess: string;
       checking: string;
@@ -147,33 +148,41 @@ export interface Translations {
     continue: string;
     startTitle: string;
     startDescription: string;
+    startReassurance: string;
     getStarted: string;
     inventoryTitle: string;
     inventoryDescription: string;
+    inventoryReassurance: string;
     websiteUrl: string;
     runCrawl: string;
+    runCrawlHelper: string;
     crawlStarting: string;
     itemsDetected: string;
     previewTitle: string;
     previewDescription: string;
+    previewReassurance: string;
     approveTemplate: string;
     metaTitle: string;
     metaDescription: string;
+    metaReassurance: string;
     connectMeta: string;
     selectAdAccount: string;
     verifyAccess: string;
+    allowUsToPublish: string;
     budgetTitle: string;
     budgetDescription: string;
     contactUs: string;
     requestProposal: string;
     doneTitle: string;
     doneDescription: string;
+    doneReassurance: string;
     goToDashboard: string;
     statusBoxTitle: string;
     readyToActivate: string;
     notReadyYet: string;
     adsTitle: string;
     adsDescription: string;
+    adsReassurance: string;
     adsBudgetLabel: string;
     adsGeoLabel: string;
     adsGeoPlaceholder: string;
@@ -181,8 +190,11 @@ export interface Translations {
     adsSavedButNotConfirmed: string;
     continueAnyway: string;
     adsRadiusLabel: string;
+    adsRadiusHelper: string;
     adsFormatsLabel: string;
+    adsFormatsHelper: string;
     adsCtaLabel: string;
+    adsCtaHelper: string;
     saveAndContinue: string;
     saved: string;
     saveFailed: string;
@@ -191,6 +203,11 @@ export interface Translations {
   dashboard: {
     title: string;
     subtitle: string;
+    setupIncomplete: string;
+    setupIncompleteHelper: string;
+    finishSetup: string;
+    systemActive: string;
+    systemActiveHelper: string;
     performanceSnapshot: string;
     impressions: string;
     clicks: string;
@@ -205,6 +222,8 @@ export interface Translations {
     scaleSuggestion: string;
     inventoryIncreased: string;
     campaignPausedHint: string;
+    noDataYet: string;
+    noDataYetHelper: string;
   };
 }
 
@@ -312,36 +331,37 @@ export const translations: Record<Language, Translations> = {
       qaGateFailing: "Kvalitetskontroll misslyckades",
       qaGateFailingHint: "Kontrollera Scrape QA-panelen eller lagerkvalitet innan du fortsätter.",
       itemsToPublish: "Objekt som kommer att publiceras",
-      noItemsToPublish: "Inga objekt hittades att publicera",
+      noItemsToPublish: "Inga objekt hittades att publiceras",
       publishBlocked: "Publicering blockerad",
       price: "Pris",
       destinationUrl: "Mål-URL",
       viewItem: "Visa objekt",
-      verifyMetaAccessCta: "Verifiera Meta-åtkomst i Inställningar",
+      verifyMetaAccessCta: "Tillåt oss att publicera annonser",
     },
     settings: {
       meta: {
         step1Optional: "Steg 1 (valfritt)",
         step2SelectAdAccount: "Steg 2",
         step3GrantPartnerAccess: "Steg 3",
-        grantPartnerAccessTitle: "Ge partneråtkomst",
+        grantPartnerAccessTitle: "Tillåt oss att publicera annonser",
         connectMeta: "Anslut Meta",
         selectAdAccount: "Välj annonskonto",
         grantPartnerInstructions: "Lägg till {partnerName} som partner i din Meta Business Manager och ge åtkomst till det valda annonskontot. Klicka sedan på Verifiera.",
+        grantPartnerInstructionsSimplified: "För att vi ska kunna skapa annonser åt dig måste du ge oss tillgång i Meta Business Manager. Kopiera informationen nedan och följ instruktionerna.",
         openMetaBusinessSettings: "Öppna Meta Business-inställningar",
         verifyAccess: "Verifiera",
         checking: "Kontrollerar…",
         statusPending: "Väntar",
         statusVerified: "Verifierad",
         statusFailed: "Misslyckad",
-        partnerAccessVerified: "Partneråtkomst verifierad. Annonser kan skapas i ditt annonskonto.",
-        accessNotGrantedYet: "Åtkomst inte beviljad än.",
+        partnerAccessVerified: "Klart! Vi kan nu skapa annonser i ditt annonskonto.",
+        accessNotGrantedYet: "Åtkomst inte beviljad än. Följ stegen ovan.",
         metaNotConfiguredBanner: "Meta är inte konfigurerad för produktion. Sätt META_SYSTEM_USER_ACCESS_TOKEN på servern för att aktivera partnerverifiering.",
         metaNotConfiguredForProductionBanner: "Meta är inte konfigurerad för produktion. Business Manager-id saknas.",
         step3WhatToDo: "Gör så här i Meta Business Manager:",
         step3AddPartner: "Lägg till partner med partnernamnet och Business Manager-id nedan.",
-        step3GrantAccess: "Bevilja åtkomst till det valda annonskontot för partnern.",
-        step3PermissionWording: "Ge behörighet att hantera annonser och se prestanda (manage ads + view performance).",
+        step3GrantAccess: "Ge tillgång till det valda annonskontot för partnern.",
+        step3PermissionWording: "Ge behörighet att hantera annonser (manage ads).",
         partnerNameLabel: "Partnernamn",
         partnerBusinessIdLabel: "Partner Business Manager-id",
         copy: "Kopiera",
@@ -355,51 +375,67 @@ export const translations: Record<Language, Translations> = {
       back: "Tillbaka",
       continue: "Fortsätt",
       startTitle: "Välkommen till Project Auto",
-      startDescription: "Konfigurera din webbplats, mallar, Meta och budget på några minuter.",
+      startDescription: "Vi hjälper dig att automatisera annonser för dina fordon. Installationen tar cirka 5 minuter.",
+      startReassurance: "Inga annonser publiceras förrän du godkänner det.",
       getStarted: "Kom igång",
-      inventoryTitle: "Anslut webbplats och lager",
-      inventoryDescription: "Ange webbadressen till din lagerlista och kör en crawl.",
+      inventoryTitle: "Anslut ditt lager",
+      inventoryDescription: "Ange webbadressen till din lagersida så hämtar vi automatiskt dina fordon.",
+      inventoryReassurance: "Vi hämtar endast information om fordon – inga annonser skapas ännu.",
       websiteUrl: "Webbplats-URL",
-      runCrawl: "Kör crawl",
-      crawlStarting: "Startar…",
-      itemsDetected: "Objekt upptäckta",
-      previewTitle: "Mall och förhandsgranskning",
-      previewDescription: "Välj mall och godkänn förhandsgranskning.",
-      approveTemplate: "Godkänn mall",
-      metaTitle: "Meta och annonskonto",
-      metaDescription: "Anslut Meta, välj annonskonto och verifiera partneråtkomst.",
-      connectMeta: "Anslut Meta",
+      runCrawl: "Hämta fordon",
+      runCrawlHelper: "Klicka här för att leta efter fordon på din webbplats",
+      crawlStarting: "Hämtar…",
+      itemsDetected: "fordon hittade",
+      previewTitle: "Välj hur dina annonser ska se ut",
+      previewDescription: "Välj en annonsdesign och förhandsgranska hur den kommer att se ut.",
+      previewReassurance: "Du kan ändra design när som helst – ingenting publiceras ännu.",
+      approveTemplate: "Godkänn design",
+      metaTitle: "Anslut till Facebook/Instagram",
+      metaDescription: "För att publicera annonser behöver vi tillgång till ditt Facebook/Instagram-annonskonto.",
+      metaReassurance: "Vi kan bara publicera annonser – vi kan aldrig se eller använda dina betaluppgifter.",
+      connectMeta: "Anslut Facebook/Instagram",
       selectAdAccount: "Välj annonskonto",
-      verifyAccess: "Verifiera åtkomst",
-      budgetTitle: "Budget och fakturering",
-      budgetDescription: "Konfigurera din budget eller begär ett förslag.",
+      verifyAccess: "Ge oss tillgång",
+      allowUsToPublish: "Tillåt oss att publicera annonser",
+      budgetTitle: "Sätt din budget",
+      budgetDescription: "Välj hur mycket du vill spendera på annonser varje månad.",
       contactUs: "Kontakta oss",
       requestProposal: "Begär förslag",
-      doneTitle: "Klart",
-      doneDescription: "Du kan nu använda dashboarden.",
-      goToDashboard: "Gå till dashboard",
+      doneTitle: "Klart! Allt är redo",
+      doneDescription: "Din annonsautomation är nu konfigurerad. Vi börjar arbeta när du aktiverar den.",
+      doneReassurance: "Alla annonser skapas pausade tills du väljer att aktivera dem.",
+      goToDashboard: "Visa översikt",
       statusBoxTitle: "Status",
       readyToActivate: "Redo att aktivera",
       notReadyYet: "Inte redo än",
-      adsTitle: "Annonsinställningar",
-      adsDescription: "Välj område och format så kan vi skapa kampanjer automatiskt.",
-      adsBudgetLabel: "Månadsbudget (SEK)",
-      adsGeoLabel: "Plats",
-      adsGeoPlaceholder: "t.ex. Stockholm",
-      adsGeoHelper: "Vi använder detta som centrum för radien.",
+      adsTitle: "Var ska annonserna visas?",
+      adsDescription: "Välj område och format så skapar vi automatiskt annonser för varje fordon.",
+      adsReassurance: "Alla annonser skapas pausade – du bestämmer när de ska börja köras.",
+      adsBudgetLabel: "Månatlig budget (SEK, valfritt)",
+      adsGeoLabel: "Vilket område ska vi rikta oss till?",
+      adsGeoPlaceholder: "t.ex. Stockholm, Göteborg, Malmö",
+      adsGeoHelper: "Vi visar annonser för personer i och runt denna plats.",
       adsSavedButNotConfirmed: "Inställningarna sparades men kunde inte bekräftas. Försök igen eller gå vidare om allt ser rätt ut.",
       continueAnyway: "Fortsätt ändå",
-      adsRadiusLabel: "Radie (km)",
-      adsFormatsLabel: "Format",
-      adsCtaLabel: "Uppmaning (CTA)",
+      adsRadiusLabel: "Hur stor radie?",
+      adsRadiusHelper: "Hur långt från platsen ska vi visa annonser?",
+      adsFormatsLabel: "Var ska annonserna visas?",
+      adsFormatsHelper: "Välj en eller flera",
+      adsCtaLabel: "Vad ska knappen säga?",
+      adsCtaHelper: "Den knapp som visas i annonsen",
       saveAndContinue: "Spara och fortsätt",
       saved: "Sparat",
       saveFailed: "Kunde inte spara",
-      adsInventoryNote: "Baserat på era {count} bilar i lager",
+      adsInventoryNote: "Vi hittar annonsinställningar för era {count} fordon",
     },
     dashboard: {
-      title: "Dashboard",
-      subtitle: "Översikt och status",
+      title: "Översikt",
+      subtitle: "Din annonsautomation i ett ögonkast",
+      setupIncomplete: "Installation inte klar",
+      setupIncompleteHelper: "Slutför installationen för att börja automatisera annonser",
+      finishSetup: "Slutför installation",
+      systemActive: "Systemet är aktivt",
+      systemActiveHelper: "Annonser uppdateras automatiskt varje natt",
       performanceSnapshot: "Prestanda (senaste 7 dagarna)",
       impressions: "Visningar",
       clicks: "Klick",
@@ -411,9 +447,11 @@ export const translations: Record<Language, Translations> = {
       lastSync: "Senaste sync",
       lowCreditsRunway: "Låg kreditkvarvarande. Fyll på eller uppgradera.",
       topUpCta: "Fyll på / Billing",
-      scaleSuggestion: "Bra prestanda. Överväg att öka budgeten.",
-      inventoryIncreased: "Lagerökning upptäckt.",
-      campaignPausedHint: "Kampanjen kan vara pausad eller i inlärningsläge.",
+      scaleSuggestion: "Bra prestanda! Överväg att öka budgeten för att nå fler kunder.",
+      inventoryIncreased: "Nya fordon upptäckta i lagret.",
+      campaignPausedHint: "Dina kampanjer kan vara pausade. Aktivera dem i Annonser.",
+      noDataYet: "Inga data än",
+      noDataYetHelper: "Data visas när dina annonser börjar köras. Detta kan ta 24-48 timmar efter aktivering.",
     },
   },
   en: {
@@ -524,31 +562,32 @@ export const translations: Record<Language, Translations> = {
       price: "Price",
       destinationUrl: "Destination URL",
       viewItem: "View Item",
-      verifyMetaAccessCta: "Verify Meta access in Settings",
+      verifyMetaAccessCta: "Allow us to publish ads",
     },
     settings: {
       meta: {
         step1Optional: "Step 1 (optional)",
         step2SelectAdAccount: "Step 2",
         step3GrantPartnerAccess: "Step 3",
-        grantPartnerAccessTitle: "Grant Partner Access",
+        grantPartnerAccessTitle: "Allow us to publish ads",
         connectMeta: "Connect Meta",
         selectAdAccount: "Select ad account",
         grantPartnerInstructions: "Add {partnerName} as a partner to your Meta Business Manager and grant access to the selected ad account. Then click Verify.",
+        grantPartnerInstructionsSimplified: "To create ads for you, we need access in Meta Business Manager. Copy the information below and follow the instructions.",
         openMetaBusinessSettings: "Open Meta Business Settings",
         verifyAccess: "Verify",
         checking: "Checking…",
         statusPending: "Pending",
         statusVerified: "Verified",
         statusFailed: "Failed",
-        partnerAccessVerified: "Partner access verified. Ads can be created in your ad account.",
-        accessNotGrantedYet: "Access not granted yet.",
+        partnerAccessVerified: "All set! We can now create ads in your ad account.",
+        accessNotGrantedYet: "Access not granted yet. Follow the steps above.",
         metaNotConfiguredBanner: "Meta not configured for production. Set META_SYSTEM_USER_ACCESS_TOKEN on the server to enable partner verification.",
         metaNotConfiguredForProductionBanner: "Meta not configured for production. Business Manager ID is missing.",
         step3WhatToDo: "In Meta Business Manager, do the following:",
         step3AddPartner: "Add partner using the Partner Name and Partner Business Manager ID below.",
         step3GrantAccess: "Grant access to the selected ad account for the partner.",
-        step3PermissionWording: "Grant permission to manage ads and view performance (manage ads + view performance).",
+        step3PermissionWording: "Grant permission to manage ads (manage ads).",
         partnerNameLabel: "Partner name",
         partnerBusinessIdLabel: "Partner Business Manager ID",
         copy: "Copy",
@@ -562,51 +601,67 @@ export const translations: Record<Language, Translations> = {
       back: "Back",
       continue: "Continue",
       startTitle: "Welcome to Project Auto",
-      startDescription: "Set up your website, templates, Meta and budget in a few minutes.",
+      startDescription: "We'll help you automate ads for your vehicles. Setup takes about 5 minutes.",
+      startReassurance: "No ads will be published until you approve them.",
       getStarted: "Get started",
-      inventoryTitle: "Connect website and inventory",
-      inventoryDescription: "Enter your inventory page URL and run a crawl.",
+      inventoryTitle: "Connect your inventory",
+      inventoryDescription: "Enter the URL to your inventory page and we'll automatically fetch your vehicles.",
+      inventoryReassurance: "We only fetch vehicle information – no ads are created yet.",
       websiteUrl: "Website URL",
-      runCrawl: "Run crawl",
-      crawlStarting: "Starting…",
-      itemsDetected: "Items detected",
-      previewTitle: "Template and preview",
-      previewDescription: "Choose a template and approve the preview.",
-      approveTemplate: "Approve template",
-      metaTitle: "Meta and ad account",
-      metaDescription: "Connect Meta, select ad account and verify partner access.",
-      connectMeta: "Connect Meta",
+      runCrawl: "Fetch vehicles",
+      runCrawlHelper: "Click here to search for vehicles on your website",
+      crawlStarting: "Fetching…",
+      itemsDetected: "vehicles found",
+      previewTitle: "Choose how your ads will look",
+      previewDescription: "Select an ad design and preview how it will appear.",
+      previewReassurance: "You can change the design anytime – nothing is published yet.",
+      approveTemplate: "Approve design",
+      metaTitle: "Connect to Facebook/Instagram",
+      metaDescription: "To publish ads, we need access to your Facebook/Instagram ad account.",
+      metaReassurance: "We can only publish ads – we can never see or use your payment details.",
+      connectMeta: "Connect Facebook/Instagram",
       selectAdAccount: "Select ad account",
-      verifyAccess: "Verify access",
-      budgetTitle: "Budget and billing",
-      budgetDescription: "Set up your budget or request a proposal.",
+      verifyAccess: "Grant us access",
+      allowUsToPublish: "Allow us to publish ads",
+      budgetTitle: "Set your budget",
+      budgetDescription: "Choose how much you want to spend on ads each month.",
       contactUs: "Contact us",
       requestProposal: "Request proposal",
-      doneTitle: "All set",
-      doneDescription: "You can now use the dashboard.",
-      goToDashboard: "Go to dashboard",
+      doneTitle: "All set! You're ready to go",
+      doneDescription: "Your ad automation is now configured. We'll start working when you activate it.",
+      doneReassurance: "All ads are created paused until you choose to activate them.",
+      goToDashboard: "View dashboard",
       statusBoxTitle: "Status",
       readyToActivate: "Ready to activate",
       notReadyYet: "Not ready yet",
-      adsTitle: "Ads settings",
-      adsDescription: "Choose area and formats so we can create campaigns automatically.",
-      adsBudgetLabel: "Monthly budget (SEK)",
-      adsGeoLabel: "Location",
-      adsGeoPlaceholder: "e.g. Stockholm",
-      adsGeoHelper: "Used as the center for your radius.",
+      adsTitle: "Where should ads appear?",
+      adsDescription: "Choose area and formats, and we'll automatically create ads for each vehicle.",
+      adsReassurance: "All ads are created paused – you decide when they should start running.",
+      adsBudgetLabel: "Monthly budget (SEK, optional)",
+      adsGeoLabel: "Which area should we target?",
+      adsGeoPlaceholder: "e.g. Stockholm, Gothenburg, Malmö",
+      adsGeoHelper: "We'll show ads to people in and around this location.",
       adsSavedButNotConfirmed: "Settings were saved but could not be confirmed. Try again or continue if everything looks correct.",
       continueAnyway: "Continue anyway",
-      adsRadiusLabel: "Radius (km)",
-      adsFormatsLabel: "Formats",
-      adsCtaLabel: "Call-to-action (CTA)",
+      adsRadiusLabel: "How large radius?",
+      adsRadiusHelper: "How far from the location should we show ads?",
+      adsFormatsLabel: "Where should ads appear?",
+      adsFormatsHelper: "Choose one or more",
+      adsCtaLabel: "What should the button say?",
+      adsCtaHelper: "The button shown in the ad",
       saveAndContinue: "Save and continue",
       saved: "Saved",
       saveFailed: "Save failed",
-      adsInventoryNote: "Based on your {count} items in inventory",
+      adsInventoryNote: "We'll set up ads for your {count} vehicles",
     },
     dashboard: {
       title: "Dashboard",
-      subtitle: "Overview and status",
+      subtitle: "Your ad automation at a glance",
+      setupIncomplete: "Setup incomplete",
+      setupIncompleteHelper: "Finish setup to start automating ads",
+      finishSetup: "Finish setup",
+      systemActive: "System is active",
+      systemActiveHelper: "Ads are automatically updated every night",
       performanceSnapshot: "Performance (last 7 days)",
       impressions: "Impressions",
       clicks: "Clicks",
@@ -618,9 +673,11 @@ export const translations: Record<Language, Translations> = {
       lastSync: "Last sync",
       lowCreditsRunway: "Low credits runway. Top up or upgrade.",
       topUpCta: "Top up / Billing",
-      scaleSuggestion: "Strong performance. Consider increasing budget.",
-      inventoryIncreased: "Inventory increase detected.",
-      campaignPausedHint: "Campaign may be paused or in learning.",
+      scaleSuggestion: "Strong performance! Consider increasing budget to reach more customers.",
+      inventoryIncreased: "New vehicles detected in inventory.",
+      campaignPausedHint: "Your campaigns may be paused. Activate them in Ads.",
+      noDataYet: "No data yet",
+      noDataYetHelper: "Data will appear when your ads start running. This can take 24-48 hours after activation.",
     },
   },
 };
