@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Error({
   error,
@@ -48,12 +49,12 @@ export default function Error({
       </button>
         <p style={{ marginTop: "1.5rem", fontSize: "0.875rem", color: "#6b7280" }}>
         If this persists, try{" "}
-        <a
+        <Link
           href="/"
           style={{ color: "#3b82f6" }}
         >
           going home
-        </a>
+        </Link>
         {" "}or restarting the dev server (see README troubleshooting).
       </p>
     </div>

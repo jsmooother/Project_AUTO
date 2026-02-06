@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -37,7 +37,7 @@ interface BillingStatus {
 
 function AutomationContent() {
   const { auth } = useAuth();
-  const { t, formatCurrency, formatDate, formatDateTime } = useI18n();
+  const { t, formatCurrency, formatDate } = useI18n();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") === "history" ? "history" : "automation";
   
@@ -56,7 +56,7 @@ function AutomationContent() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!customerId) return;
     setLoading(true);
     Promise.all([
@@ -79,11 +79,11 @@ function AutomationContent() {
       })
       .catch(() => setError("Failed to load data"))
       .finally(() => setLoading(false));
-  };
+  }, [customerId]);
 
   useEffect(() => {
     if (customerId) load();
-  }, [customerId]);
+  }, [customerId, load]);
 
   const handleRunNow = async () => {
     if (!customerId) return;
@@ -126,9 +126,6 @@ function AutomationContent() {
   const daysRemaining = daysInMonth - dayOfMonth;
 
   const latestRun = runs.length > 0 ? runs[0] : null;
-  const lastRunTime = latestRun?.finishedAt 
-    ? new Date(latestRun.finishedAt).toLocaleString()
-    : "Never";
   const lastRunAgo = latestRun?.finishedAt
     ? (() => {
         const diff = Date.now() - new Date(latestRun.finishedAt).getTime();

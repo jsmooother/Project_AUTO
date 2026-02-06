@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { getAdminHeaders } from "../../lib/adminHeaders";
-import { Megaphone, TrendingUp, DollarSign, Users } from "lucide-react";
+import { Megaphone, TrendingUp, Users } from "lucide-react";
 
 interface OverviewData {
   customers: {

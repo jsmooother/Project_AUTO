@@ -71,7 +71,13 @@ export default function AdminCustomerDetailPage() {
   const [realCrawlLoading, setRealCrawlLoading] = useState(false);
   const [realCrawlUrl, setRealCrawlUrl] = useState("https://www.ivarsbil.se");
   const [scrapeQaOpen, setScrapeQaOpen] = useState(false);
-  const [scrapeQaData, setScrapeQaData] = useState<any[] | null>(null);
+  const [scrapeQaData, setScrapeQaData] = useState<Array<{
+    id: string;
+    title: string | null;
+    url: string;
+    price: number | null;
+    detailsJson: Record<string, unknown> | null;
+  }> | null>(null);
   const [scrapeQaLoading, setScrapeQaLoading] = useState(false);
   const [ledger, setLedger] = useState<{ entries: Array<{ id: string; type: string; amountSek: number; refType?: string; periodDate?: string; note?: string; createdAt: string }>; balanceSek: number } | null>(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
@@ -380,13 +386,13 @@ export default function AdminCustomerDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {scrapeQaData.map((item: any) => {
+                      {scrapeQaData.map((item) => {
                         // QA validation logic (matches worker validation)
-                        const price = item.detailsJson?.priceAmount ?? item.price ?? 0;
+                        const price = (item.detailsJson?.priceAmount as number | undefined) ?? item.price ?? 0;
                         const hasTitle = !!item.title;
                         const hasImage = !!(item.detailsJson?.primaryImageUrl || (item.detailsJson?.images && Array.isArray(item.detailsJson.images) && item.detailsJson.images.length > 0));
                         const hasValidUrl = !!(item.url && item.url.startsWith("https"));
-                        const priceValid = price >= 50000;
+                        const priceValid = typeof price === "number" && price >= 50000;
                         
                         const qaPass = hasTitle && hasImage && hasValidUrl && priceValid;
                         const qaBadge = qaPass ? (
@@ -406,19 +412,19 @@ export default function AdminCustomerDetailPage() {
                               {item.title || "-"}
                             </td>
                             <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                              {price ? `${price.toLocaleString()} ${item.detailsJson?.currency || "SEK"}` : "-"}
+                              {price ? `${price.toLocaleString()} ${(item.detailsJson?.currency as string | undefined) || "SEK"}` : "-"}
                             </td>
                             <td style={{ padding: "0.5rem", fontSize: "0.75rem", color: "#666" }}>
-                              {item.detailsJson?.priceSource || "-"}
+                              {(item.detailsJson?.priceSource as string | undefined) || "-"}
                             </td>
-                            <td style={{ padding: "0.5rem" }}>{item.detailsJson?.year || "-"}</td>
+                            <td style={{ padding: "0.5rem" }}>{(item.detailsJson?.year as number | string | undefined) || "-"}</td>
                             <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                              {item.detailsJson?.mileageKm ? `${item.detailsJson.mileageKm.toLocaleString()} km` : "-"}
+                              {item.detailsJson?.mileageKm ? `${(item.detailsJson.mileageKm as number).toLocaleString()} km` : "-"}
                             </td>
                             <td style={{ padding: "0.5rem" }}>
                               {item.detailsJson?.primaryImageUrl ? (
                                 <img
-                                  src={item.detailsJson.primaryImageUrl}
+                                  src={item.detailsJson.primaryImageUrl as string}
                                   alt=""
                                   style={{ width: "60px", height: "40px", objectFit: "cover", borderRadius: "4px" }}
                                   onError={(e) => {

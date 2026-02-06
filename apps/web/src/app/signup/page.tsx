@@ -248,7 +248,7 @@ export default function SignupPage() {
                   </label>
                 </div>
                 <p style={{ fontSize: "0.75rem", color: "#1e40af", marginLeft: "1.5rem" }}>
-                  We'll automatically connect this website during onboarding
+                  We&apos;ll automatically connect this website during onboarding
                 </p>
               </div>
             )}

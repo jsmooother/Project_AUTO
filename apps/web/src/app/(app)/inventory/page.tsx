@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";

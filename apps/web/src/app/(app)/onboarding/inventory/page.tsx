@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 import { useOnboardingStatus } from "@/lib/onboarding/useOnboardingStatus";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { useI18n } from "@/lib/i18n/context";

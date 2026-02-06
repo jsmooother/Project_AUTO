@@ -32,7 +32,6 @@ export interface OnboardingStatusResult {
   billingHint: string | null;
 }
 
-const defaultStep = (): OnboardingStepState => ({ status: "pending" });
 
 export function useOnboardingStatus(customerId: string | null) {
   const [result, setResult] = useState<OnboardingStatusResult | null>(null);

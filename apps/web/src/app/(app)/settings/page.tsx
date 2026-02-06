@@ -304,7 +304,7 @@ function SettingsPage() {
         } else if (!res.ok) {
           setMetaError(res.error ?? "Failed to get OAuth URL");
         }
-      } catch (err) {
+      } catch {
         setMetaError("Failed to start OAuth flow");
       }
     } else {

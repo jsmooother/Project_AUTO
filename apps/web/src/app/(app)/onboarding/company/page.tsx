@@ -88,12 +88,12 @@ export default function CompanyOnboardingPage() {
           />
           {isPreFilled && (
             <p style={{ marginTop: "0.25rem", fontSize: "0.875rem", color: "#1e40af", fontStyle: "italic" }}>
-              ✓ Pre-filled from your email domain - we'll validate and connect it automatically
+              ✓ Pre-filled from your email domain - we&apos;ll validate and connect it automatically
             </p>
           )}
           {!isPreFilled && (
             <p style={{ marginTop: "0.25rem", fontSize: "0.875rem", color: "#666" }}>
-              You can enter short URLs like "ivarsbil.se" - we'll validate and format it automatically
+              You can enter short URLs like &quot;ivarsbil.se&quot; - we&apos;ll validate and format it automatically
             </p>
           )}
         </div>

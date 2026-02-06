@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { EmptyState } from "@/components/EmptyState";
-import { Eye, MousePointerClick, TrendingUp, RefreshCw, AlertTriangle, Settings, Rocket } from "lucide-react";
+import { Eye, MousePointerClick, TrendingUp, RefreshCw, AlertTriangle } from "lucide-react";
 
 interface PerformanceSummary {
   mode: "real" | "sim" | "disabled";
@@ -34,8 +33,9 @@ export default function PerformancePage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<PerformanceSummary | null>(null);
   const [preset, setPreset] = useState<"last_7d" | "last_30d">("last_7d");
+  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const loadData = async (isRefresh = false) => {
+  const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) {
       setRefreshing(true);
     } else {
@@ -44,7 +44,6 @@ export default function PerformancePage() {
     setError(null);
 
     try {
-      const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
       if (!customerId) {
         setError("Not authenticated");
         return;
@@ -77,13 +76,13 @@ export default function PerformancePage() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [customerId, preset]);
 
   useEffect(() => {
-    if (auth.status === "authenticated" && auth.user.customerId) {
+    if (auth.status === "authenticated" && customerId) {
       loadData();
     }
-  }, [auth.status, auth.status === "authenticated" ? auth.user.customerId : null, preset]);
+  }, [auth.status, customerId, loadData]);
 
   if (auth.status === "loading" || loading) {
     return <LoadingSpinner />;

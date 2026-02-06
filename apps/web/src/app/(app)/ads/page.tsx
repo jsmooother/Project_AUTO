@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { useI18n } from "@/lib/i18n/context";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { TestModeBanner } from "@/components/TestModeBanner";
 import {
   CheckCircle2,
   XCircle,
@@ -107,7 +105,6 @@ const AVAILABLE_REGIONS = ["Stockholm", "Göteborg", "Malmö", "Uppsala", "Väst
 function AdsContent() {
   const { auth } = useAuth();
   const { t } = useI18n();
-  const router = useRouter();
   const [status, setStatus] = useState<AdsStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,7 +129,7 @@ function AdsContent() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const loadStatus = () => {
+  const loadStatus = useCallback(() => {
     if (!customerId) return;
     setLoading(true);
     setError(null);
@@ -164,11 +161,11 @@ function AdsContent() {
       })
       .catch(() => setError("Failed to load ads status"))
       .finally(() => setLoading(false));
-  };
+  }, [customerId]);
 
   useEffect(() => {
     if (customerId) loadStatus();
-  }, [customerId]);
+  }, [customerId, loadStatus]);
 
   const handleSync = async () => {
     if (!customerId) return;
@@ -274,7 +271,6 @@ function AdsContent() {
   const isReady = prerequisites.website.ok && prerequisites.inventory.ok && prerequisites.templates.ok && prerequisites.meta.ok;
   const adsLaunched = objects?.status === "active" || settings?.status === "active";
   const configDone = settings && (settings.geoMode === "radius" ? settings.geoCenterText : settings.geoRegionsJson?.length) && settings.formatsJson.length > 0;
-  const isTestMode = derived?.metaAccountMode === "internal_test";
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>

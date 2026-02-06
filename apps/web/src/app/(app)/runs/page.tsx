@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +8,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
-import { Play, RefreshCw } from "lucide-react";
+import { Play } from "lucide-react";
 
 interface Run {
   id: string;
@@ -35,7 +35,7 @@ function RunsContent() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!customerId) return;
     setLoading(true);
     Promise.all([
@@ -49,11 +49,11 @@ function RunsContent() {
       })
       .catch(() => setError("Failed to load runs"))
       .finally(() => setLoading(false));
-  };
+  }, [customerId, runType]);
 
   useEffect(() => {
     if (customerId) load();
-  }, [customerId, runType]);
+  }, [customerId, load]);
 
   const hasActiveRuns = runs.some((r) => r.status === "queued" || r.status === "running");
   const QUEUED_TIMEOUT_MS = 5 * 60 * 1000;
@@ -65,7 +65,7 @@ function RunsContent() {
     if (!customerId || !hasActiveRuns) return;
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, [customerId, runType, hasActiveRuns]);
+  }, [customerId, hasActiveRuns, load]);
 
   const handleRunNow = async () => {
     if (!customerId) return;

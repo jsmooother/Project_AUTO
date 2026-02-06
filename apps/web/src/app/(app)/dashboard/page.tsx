@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
@@ -47,7 +47,7 @@ function DashboardContent() {
   const [error, setError] = useState<string | null>(null);
   const prevInventoryCountRef = useRef<number | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!customerId) return;
     setLoading(true);
     setError(null);
@@ -74,11 +74,11 @@ function DashboardContent() {
       })
       .catch(() => setError("Failed to load dashboard"))
       .finally(() => setLoading(false));
-  };
+  }, [customerId]);
 
   useEffect(() => {
     if (customerId) load();
-  }, [customerId]);
+  }, [customerId, load]);
 
   useEffect(() => {
     const metaParam = searchParams.get("meta");

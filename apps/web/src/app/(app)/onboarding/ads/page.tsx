@@ -54,7 +54,7 @@ export default function OnboardingAdsPage() {
   const { t } = useI18n();
   const router = useRouter();
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
-  const { result, loading, refresh } = useOnboardingStatus(customerId);
+  const { result, refresh } = useOnboardingStatus(customerId);
 
   const [settings, setSettings] = useState<AdsSettings>({
     geoMode: "radius",

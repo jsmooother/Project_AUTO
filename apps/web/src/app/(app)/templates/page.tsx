@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
@@ -174,6 +173,8 @@ function SelectCard<T extends string>({
   sub?: string;
   icon?: React.ComponentType<{ size?: number }>;
 }) {
+  // value is used for type safety but not directly in JSX
+  void value;
   return (
     <button
       type="button"
@@ -208,7 +209,7 @@ function SelectCard<T extends string>({
 export default function TemplatesPage() {
   const { auth } = useAuth();
   const router = useRouter();
-  const [templates, setTemplates] = useState<AdTemplate[]>([]);
+  const [, setTemplates] = useState<AdTemplate[]>([]);
   const [config, setConfig] = useState<TemplateConfig | null>(null);
   const [previews, setPreviews] = useState<AdPreview[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -226,7 +227,7 @@ export default function TemplatesPage() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const load = () => {
+  const load = useCallback(() => {
     if (!customerId) return;
     Promise.all([
       apiGet<{ data: AdTemplate[] }>("/templates", { customerId }),
@@ -251,11 +252,13 @@ export default function TemplatesPage() {
       })
       .catch(() => setError("Failed to load templates"))
       .finally(() => setLoading(false));
-  };
+  }, [customerId]);
 
   useEffect(() => {
     if (customerId) load();
-  }, [customerId]);
+  }, [customerId, load]);
+
+  const previewIds = useMemo(() => previews.map((p) => p.id).join(","), [previews]);
 
   useEffect(() => {
     if (!customerId || previews.length === 0) return;
@@ -270,7 +273,7 @@ export default function TemplatesPage() {
           setPreviewHtmlCache((prev) => (prev[p.id] ? prev : { ...prev, [p.id]: html }))
         );
     });
-  }, [customerId, previews.map((p) => p.id).join(",")]);
+  }, [customerId, previews, previewIds]);
 
   const handleApplyTemplate = async () => {
     if (!customerId) return;

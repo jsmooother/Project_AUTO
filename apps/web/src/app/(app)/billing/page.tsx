@@ -7,7 +7,7 @@ import { apiGet } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { PageHeader, Card, CardHeader, CardContent, StatCard, Banner, Badge } from "@/components/ui";
-import { Wallet, Calendar, Eye, MousePointerClick, TrendingUp, Users } from "lucide-react";
+import { Wallet, Eye, MousePointerClick, TrendingUp, Users } from "lucide-react";
 
 interface BillingPlan {
   billingMode: "time_based" | "impression_based";
@@ -42,12 +42,13 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<BillingStatus | null>(null);
   const [preset, setPreset] = useState<"last_7_days" | "last_30_days">("last_7_days");
+  const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
   useEffect(() => {
-    if (auth.status !== "authenticated" || !auth.user.customerId) return;
+    if (auth.status !== "authenticated" || !customerId) return;
     setLoading(true);
     setError(null);
-    apiGet<BillingStatus>(`/billing/status?preset=${preset}`, { customerId: auth.user.customerId })
+    apiGet<BillingStatus>(`/billing/status?preset=${preset}`, { customerId })
       .then((res) => {
         if (!res.ok) {
           setError(res.errorDetail?.hint || res.error || "Failed to load billing");
@@ -57,7 +58,7 @@ export default function BillingPage() {
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load billing"))
       .finally(() => setLoading(false));
-  }, [auth.status, auth.status === "authenticated" ? auth.user.customerId : null, preset]);
+  }, [auth.status, customerId, preset]);
 
   if (auth.status === "loading" || loading) return <LoadingSpinner />;
   if (auth.status === "unauthenticated") {
