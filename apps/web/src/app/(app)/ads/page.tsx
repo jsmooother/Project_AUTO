@@ -111,6 +111,8 @@ function AdsContent() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [publishLoading, setPublishLoading] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+  const [eligibleItemsCount, setEligibleItemsCount] = useState<number | null>(null);
+  const [creativesStatus, setCreativesStatus] = useState<{ ready: number; total: number } | null>(null);
 
   // UI state
   const [prerequisitesExpanded, setPrerequisitesExpanded] = useState(true);
@@ -129,38 +131,47 @@ function AdsContent() {
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
-  const loadStatus = useCallback(() => {
+  const loadStatus = useCallback(async () => {
     if (!customerId) return;
     setLoading(true);
     setError(null);
-    apiGet<AdsStatus>("/ads/status", { customerId })
-      .then((res) => {
-        if (res.ok) {
-          setStatus(res.data);
-          // Initialize form state from settings
-          if (res.data.settings) {
-            setGeoMode(res.data.settings.geoMode as "radius" | "regions");
-            setRadiusKm(String(res.data.settings.geoRadiusKm || 30));
-            setCenterCity(res.data.settings.geoCenterText || "");
-            setSelectedRegions(res.data.settings.geoRegionsJson || []);
-            setFormatFeed(res.data.settings.formatsJson.includes("feed"));
-            setFormatReels(res.data.settings.formatsJson.includes("reels"));
-            setCtaType(res.data.settings.ctaType);
-            setBudgetOverride(res.data.settings.budgetOverride ? String(res.data.settings.budgetOverride) : "");
-          }
-          // Auto-expand prerequisites if not ready
-          const allReady =
-            res.data.prerequisites.website.ok &&
-            res.data.prerequisites.inventory.ok &&
-            res.data.prerequisites.templates.ok &&
-            res.data.prerequisites.meta.ok;
-          setPrerequisitesExpanded(!allReady);
-        } else {
-          setError(res.error);
+    try {
+      const res = await apiGet<AdsStatus>("/ads/status", { customerId });
+      if (res.ok) {
+        setStatus(res.data);
+        // Initialize form state from settings
+        if (res.data.settings) {
+          setGeoMode(res.data.settings.geoMode as "radius" | "regions");
+          setRadiusKm(String(res.data.settings.geoRadiusKm || 30));
+          setCenterCity(res.data.settings.geoCenterText || "");
+          setSelectedRegions(res.data.settings.geoRegionsJson || []);
+          setFormatFeed(res.data.settings.formatsJson.includes("feed"));
+          setFormatReels(res.data.settings.formatsJson.includes("reels"));
+          setCtaType(res.data.settings.ctaType);
+          setBudgetOverride(res.data.settings.budgetOverride ? String(res.data.settings.budgetOverride) : "");
         }
-      })
-      .catch(() => setError("Failed to load ads status"))
-      .finally(() => setLoading(false));
+        // Auto-expand prerequisites if not ready
+        const allReady =
+          res.data.prerequisites.website.ok &&
+          res.data.prerequisites.inventory.ok &&
+          res.data.prerequisites.templates.ok &&
+          res.data.prerequisites.meta.ok;
+        setPrerequisitesExpanded(!allReady);
+        
+        // Load eligible items count
+        const invRes = await apiGet<{ data: Array<{ isAdEligible?: boolean }> }>("/inventory/items", { customerId });
+        if (invRes.ok) {
+          const eligible = invRes.data.data?.filter((item) => item.isAdEligible !== false).length ?? 0;
+          setEligibleItemsCount(eligible);
+        }
+      } else {
+        setError(res.error);
+      }
+    } catch {
+      setError("Failed to load ads status");
+    } finally {
+      setLoading(false);
+    }
   }, [customerId]);
 
   useEffect(() => {
@@ -1066,25 +1077,32 @@ function AdsContent() {
             <div style={{ display: "flex", gap: "0.75rem" }}>
               {!adsLaunched ? (
                 <>
-                  <Link
-                    href="/ads/preview"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.75rem 1.5rem",
-                      background: !configDone ? "#d1d5db" : "white",
-                      color: !configDone ? "#9ca3af" : "var(--pa-dark)",
-                      border: "1px solid var(--pa-border)",
-                      borderRadius: 6,
-                      fontWeight: 500,
-                      fontSize: "1rem",
-                      cursor: !configDone ? "not-allowed" : "pointer",
-                      textDecoration: "none",
-                    }}
-                  >
-                    {t.ads.previewAds}
-                  </Link>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "flex-end" }}>
+                    <Link
+                      href="/ads/preview"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.75rem 1.5rem",
+                        background: !configDone ? "#d1d5db" : "white",
+                        color: !configDone ? "#9ca3af" : "var(--pa-dark)",
+                        border: "1px solid var(--pa-border)",
+                        borderRadius: 6,
+                        fontWeight: 500,
+                        fontSize: "1rem",
+                        cursor: !configDone ? "not-allowed" : "pointer",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Preview & Publish
+                    </Link>
+                    {eligibleItemsCount !== null && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--pa-gray)" }}>
+                        Eligible items: {eligibleItemsCount}
+                      </div>
+                    )}
+                  </div>
                   <button
                     onClick={handlePublish}
                     disabled={publishLoading || !configDone}

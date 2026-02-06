@@ -165,6 +165,9 @@ function SettingsPage() {
     hint?: string;
     checkedAt?: string;
   } | null>(null);
+  const [logoDiscoverLoading, setLogoDiscoverLoading] = useState(false);
+  const [logoDiscoverResult, setLogoDiscoverResult] = useState<"success" | "error" | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
   const allowDevMeta = process.env.NEXT_PUBLIC_ALLOW_DEV_META === "true";
@@ -542,6 +545,71 @@ function SettingsPage() {
                     )}
                   </button>
                 </div>
+              </div>
+              {/* Logo Discovery */}
+              <div style={{ marginBottom: "1rem", padding: "1rem", border: "1px solid var(--pa-border)", borderRadius: "var(--pa-radius)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                  <div>
+                    <h4 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.25rem" }}>Brand Logo</h4>
+                    <p style={{ fontSize: "0.75rem", color: "var(--pa-gray)" }}>
+                      Discover and store your logo from your website for use in ad creatives
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!customerId) return;
+                      setLogoDiscoverLoading(true);
+                      setLogoDiscoverResult(null);
+                      const res = await apiPost<{ jobId: string; status: string }>("/inventory/logo/discover", {}, { customerId });
+                      setLogoDiscoverLoading(false);
+                      if (res.ok) {
+                        setLogoDiscoverResult("success");
+                        setTimeout(() => setLogoDiscoverResult(null), 5000);
+                      } else {
+                        setLogoDiscoverResult("error");
+                        setTimeout(() => setLogoDiscoverResult(null), 5000);
+                      }
+                    }}
+                    disabled={logoDiscoverLoading || !websiteConnected}
+                    style={{
+                      padding: "0.375rem 0.75rem",
+                      border: "1px solid var(--pa-border)",
+                      borderRadius: 6,
+                      background: logoDiscoverLoading || !websiteConnected ? "#f3f4f6" : "white",
+                      cursor: logoDiscoverLoading || !websiteConnected ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.875rem",
+                      fontWeight: 500,
+                    }}
+                  >
+                    {logoDiscoverLoading ? (
+                      <>
+                        <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} />
+                        {t.settings.discoverLogo}...
+                      </>
+                    ) : logoDiscoverResult === "success" ? (
+                      <>
+                        <CheckCircle2 size={14} color="#059669" />
+                        {t.settings.logoDiscovered}
+                      </>
+                    ) : logoDiscoverResult === "error" ? (
+                      <>
+                        <AlertTriangle size={14} color="#dc2626" />
+                        {t.settings.logoDiscoverFailed}
+                      </>
+                    ) : (
+                      t.settings.discoverLogo
+                    )}
+                  </button>
+                </div>
+                {logoUrl && (
+                  <div style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#f9fafb", borderRadius: 6 }}>
+                    <img src={logoUrl} alt="Logo" style={{ maxHeight: 60, maxWidth: 200 }} />
+                  </div>
+                )}
               </div>
               <div style={{ marginBottom: "1rem" }}>
                 <label htmlFor="update-url" style={{ display: "block", fontSize: "0.875rem", marginBottom: 4 }}>

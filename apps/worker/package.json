@@ -17,7 +17,8 @@
     "@repo/storage": "workspace:*",
     "dotenv": "^16.4.0",
     "drizzle-orm": "^0.36.0",
-    "playwright": "^1.58.1"
+    "playwright": "^1.58.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

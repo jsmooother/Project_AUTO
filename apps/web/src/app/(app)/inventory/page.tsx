@@ -6,6 +6,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorBanner } from "@/components/ErrorBanner";
+import { useI18n } from "@/lib/i18n/context";
 import { Search, Download, RefreshCw } from "lucide-react";
 
 interface InventoryItem {
@@ -17,6 +18,7 @@ interface InventoryItem {
   status: string;
   firstSeenAt: string;
   lastSeenAt: string;
+  isAdEligible?: boolean;
 }
 
 const THUMB_COLORS: string[] = ["#3b82f6", "#6b7280", "#ef4444", "#22c55e", "#8b5cf6", "#eab308", "#6366f1"];
@@ -44,6 +46,7 @@ const PAGE_SIZE = 10;
 
 export default function InventoryPage() {
   const { auth } = useAuth();
+  const { t } = useI18n();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [source, setSource] = useState<{ id: string; websiteUrl: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,6 +56,9 @@ export default function InventoryPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [page, setPage] = useState(0);
+  const [selectionSaving, setSelectionSaving] = useState(false);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [localSelections, setLocalSelections] = useState<Record<string, boolean>>({});
 
   const customerId = auth.status === "authenticated" ? auth.user.customerId : null;
 
@@ -66,8 +72,15 @@ export default function InventoryPage() {
     )
       .then((res) => {
         if (res.ok) {
-          setItems(res.data.data ?? []);
+          const loadedItems = res.data.data ?? [];
+          setItems(loadedItems);
           setSource(res.data.source ?? null);
+          // Initialize local selections from loaded items
+          const selections: Record<string, boolean> = {};
+          for (const item of loadedItems) {
+            selections[item.id] = item.isAdEligible ?? true;
+          }
+          setLocalSelections(selections);
         } else {
           setError(res.error);
         }
@@ -137,6 +150,70 @@ export default function InventoryPage() {
     const res = await apiPost<{ runId: string }>("/runs/crawl", undefined, { customerId });
     setSyncLoading(false);
     if (res.ok) load();
+  };
+
+  const handleToggleSelection = async (itemIds: string[], isAdEligible: boolean) => {
+    if (!customerId) return;
+    setSelectionSaving(true);
+    setSelectionError(null);
+    
+    // Optimistic update
+    const newSelections = { ...localSelections };
+    for (const id of itemIds) {
+      newSelections[id] = isAdEligible;
+    }
+    setLocalSelections(newSelections);
+
+    const res = await apiPost<{ updated: number; isAdEligible: boolean }>(
+      "/inventory/items/select",
+      { itemIds, isAdEligible },
+      { customerId }
+    );
+    
+    setSelectionSaving(false);
+    if (!res.ok) {
+      setSelectionError(res.error);
+      // Revert optimistic update
+      setLocalSelections((prev) => {
+        const reverted = { ...prev };
+        for (const id of itemIds) {
+          reverted[id] = items.find((i) => i.id === id)?.isAdEligible ?? true;
+        }
+        return reverted;
+      });
+    } else {
+      // Reload to sync with backend
+      load();
+    }
+  };
+
+  const handleBulkAction = (action: "includeAll" | "excludeAll" | "includeTop10") => {
+    if (!customerId || items.length === 0) return;
+    
+    let itemIds: string[] = [];
+    let isAdEligible = true;
+    
+    if (action === "includeAll") {
+      itemIds = filtered.map((i) => i.id);
+      isAdEligible = true;
+    } else if (action === "excludeAll") {
+      itemIds = filtered.map((i) => i.id);
+      isAdEligible = false;
+    } else if (action === "includeTop10") {
+      const sorted = [...filtered].sort((a, b) => {
+        try {
+          return new Date(b.firstSeenAt).getTime() - new Date(a.firstSeenAt).getTime();
+        } catch {
+          return 0;
+        }
+      });
+      itemIds = sorted.slice(0, 10).map((i) => i.id);
+      isAdEligible = true;
+    }
+    
+    if (itemIds.length > 0) {
+      handleToggleSelection(itemIds, isAdEligible);
+    }
   };
 
   // Now we can do conditional returns after all hooks
@@ -223,6 +300,12 @@ export default function InventoryPage() {
       </div>
 
       {error && <ErrorBanner message={error} onRetry={load} />}
+      {selectionError && (
+        <ErrorBanner
+          message={`${t.inventory.selectionSaveFailed}: ${selectionError}`}
+          onRetry={() => setSelectionError(null)}
+        />
+      )}
 
       {!source && !error && (
         <EmptyState
@@ -297,6 +380,74 @@ export default function InventoryPage() {
               <div style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>{withImagesPct}</div>
               <div style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>With images</div>
             </div>
+          </div>
+
+          {/* Bulk Actions */}
+          <div
+            style={{
+              background: "white",
+              border: "1px solid var(--pa-border)",
+              borderRadius: "var(--pa-radius-lg)",
+              padding: "1rem 1.5rem",
+              marginBottom: "1rem",
+              display: "flex",
+              gap: "0.75rem",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <span style={{ fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-gray)", marginRight: "0.5rem" }}>
+              {t.inventory.includeInAds}:
+            </span>
+            <button
+              type="button"
+              onClick={() => handleBulkAction("includeAll")}
+              disabled={selectionSaving || filtered.length === 0}
+              style={{
+                padding: "0.375rem 0.75rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                cursor: selectionSaving || filtered.length === 0 ? "not-allowed" : "pointer",
+                fontSize: "0.875rem",
+                opacity: selectionSaving || filtered.length === 0 ? 0.5 : 1,
+              }}
+            >
+              {t.inventory.includeAll}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkAction("excludeAll")}
+              disabled={selectionSaving || filtered.length === 0}
+              style={{
+                padding: "0.375rem 0.75rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                cursor: selectionSaving || filtered.length === 0 ? "not-allowed" : "pointer",
+                fontSize: "0.875rem",
+                opacity: selectionSaving || filtered.length === 0 ? 0.5 : 1,
+              }}
+            >
+              {t.inventory.excludeAll}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBulkAction("includeTop10")}
+              disabled={selectionSaving || filtered.length === 0}
+              style={{
+                padding: "0.375rem 0.75rem",
+                border: "1px solid var(--pa-border)",
+                borderRadius: 6,
+                background: "white",
+                cursor: selectionSaving || filtered.length === 0 ? "not-allowed" : "pointer",
+                fontSize: "0.875rem",
+                opacity: selectionSaving || filtered.length === 0 ? 0.5 : 1,
+              }}
+            >
+              {t.inventory.includeTop10}
+            </button>
+            {selectionSaving && <span style={{ fontSize: "0.875rem", color: "var(--pa-gray)" }}>{t.common.loading}</span>}
           </div>
 
           {/* Filters */}
@@ -398,6 +549,9 @@ export default function InventoryPage() {
                     <th style={{ padding: "0.75rem 1rem", fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-gray)" }}>Price</th>
                     <th style={{ padding: "0.75rem 1rem", fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-gray)" }}>Last seen</th>
                     <th style={{ padding: "0.75rem 1rem", fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-gray)" }}>Status</th>
+                    <th style={{ padding: "0.75rem 1rem", fontSize: "0.875rem", fontWeight: 500, color: "var(--pa-gray)", width: 150 }}>
+                      {t.inventory.includeInAds}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -463,6 +617,32 @@ export default function InventoryPage() {
                           >
                             {item.status}
                           </span>
+                        </td>
+                        <td style={{ padding: "0.75rem 1rem" }}>
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              cursor: selectionSaving ? "not-allowed" : "pointer",
+                              opacity: selectionSaving ? 0.5 : 1,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={localSelections[item.id] ?? (item.isAdEligible ?? true)}
+                              onChange={(e) => {
+                                if (!selectionSaving) {
+                                  handleToggleSelection([item.id], e.target.checked);
+                                }
+                              }}
+                              disabled={selectionSaving}
+                              style={{ width: 16, height: 16, cursor: selectionSaving ? "not-allowed" : "pointer" }}
+                            />
+                            <span style={{ fontSize: "0.875rem" }}>
+                              {localSelections[item.id] ?? (item.isAdEligible ?? true) ? "✓" : "✗"}
+                            </span>
+                          </label>
                         </td>
                       </tr>
                     );

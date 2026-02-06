@@ -3,6 +3,8 @@ import { z } from "zod";
 import { eq, and, desc } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import { inventorySources, inventoryItems } from "@repo/db/schema";
+import { queue } from "../lib/queue.js";
+import { JOB_TYPES } from "@repo/queue";
 
 const createSourceBody = z.object({
   websiteUrl: z.string().min(1, "Website URL is required"),
@@ -125,5 +127,19 @@ export async function inventoryRoutes(app: FastifyInstance): Promise<void> {
         lastCrawledAt: source.lastCrawledAt?.toISOString() ?? null,
       },
     });
+  });
+
+  // POST /inventory/logo/discover - discover and store logo from website
+  app.post("/inventory/logo/discover", async (request, reply) => {
+    const customerId = request.customer.customerId;
+
+    // Enqueue logo discovery job
+    const jobId = await queue.enqueue({
+      jobType: JOB_TYPES.LOGO_DISCOVER,
+      payload: { customerId },
+      correlation: { customerId },
+    });
+
+    return reply.send({ jobId, status: "queued" });
   });
 }

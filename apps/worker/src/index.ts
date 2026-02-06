@@ -10,6 +10,9 @@ import { processPreviewGen } from "./jobs/previewGen.js";
 import { processAdsSync } from "./jobs/adsSync.js";
 import { processAdsPublish } from "./jobs/adsPublish.js";
 import { processBillingBurn } from "./jobs/billingBurn.js";
+import { processLogoDiscover } from "./jobs/logoDiscover.js";
+import { processCreativeGenerate } from "./jobs/creativeGenerate.js";
+import { isStorageConfigured } from "./lib/storage.js";
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {
@@ -27,9 +30,12 @@ function redactPassword(url: string | undefined): string {
 
 const databaseUrl = redactPassword(process.env["DATABASE_URL"]);
 const redisUrl = redactPassword(process.env["REDIS_URL"]);
+const supabaseUrl = process.env["SUPABASE_URL"];
 
 console.log(`[Worker] DATABASE_URL: ${databaseUrl}`);
 console.log(`[Worker] REDIS_URL: ${redisUrl || "not set (defaults to localhost:6379)"}`);
+console.log(`[Worker] SUPABASE_URL: ${supabaseUrl ? redactPassword(supabaseUrl) : "not set (creative generation disabled)"}`);
+console.log(`[Worker] Storage configured: ${isStorageConfigured() ? "yes" : "no (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required for creative generation)"}`);
 console.log(`[Worker] Starting workers for job types: ${Object.values(JOB_TYPES).join(", ")}`);
 
 const workers: Array<{ close: () => Promise<void> }> = [];
@@ -60,6 +66,12 @@ workers.push(
 );
 workers.push(
   queue.createWorker(JOB_TYPES.BILLING_BURN, processBillingBurn)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.LOGO_DISCOVER, processLogoDiscover)
+);
+workers.push(
+  queue.createWorker(JOB_TYPES.CREATIVE_GENERATE, processCreativeGenerate)
 );
 
 console.log(`[Worker] All workers started (${workers.length} total)`);

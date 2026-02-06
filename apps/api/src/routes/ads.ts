@@ -13,6 +13,7 @@ import {
   adRuns,
   metaAdObjects,
   onboardingStates,
+  creativeAssets,
 } from "@repo/db/schema";
 import { resolveEffectiveAdAccountId, maskAdAccountId } from "../lib/metaAdAccount.js";
 import { sql } from "drizzle-orm";
@@ -497,9 +498,16 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         url: inventoryItems.url,
         price: inventoryItems.price,
         detailsJson: inventoryItems.detailsJson,
+        isAdEligible: inventoryItems.isAdEligible,
       })
       .from(inventoryItems)
-      .where(and(eq(inventoryItems.customerId, customerId), sql`${inventoryItems.detailsJson} IS NOT NULL`))
+      .where(
+        and(
+          eq(inventoryItems.customerId, customerId),
+          eq(inventoryItems.isAdEligible, true),
+          sql`${inventoryItems.detailsJson} IS NOT NULL`
+        )
+      )
       .orderBy(desc(inventoryItems.firstSeenAt))
       .limit(qaSampleSize);
 
@@ -522,6 +530,7 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
     const qaGatePassed = invalidRatio <= qaThreshold;
 
     // Select latest N inventory items for Meta projection (N=2 for now)
+    // Only include items marked as ad-eligible
     const itemLimit = 2;
     const candidateItems = await db
       .select({
@@ -530,16 +539,44 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         url: inventoryItems.url,
         price: inventoryItems.price,
         detailsJson: inventoryItems.detailsJson,
+        isAdEligible: inventoryItems.isAdEligible,
       })
       .from(inventoryItems)
       .where(
         and(
           eq(inventoryItems.customerId, customerId),
+          eq(inventoryItems.isAdEligible, true),
           sql`${inventoryItems.detailsJson} IS NOT NULL`
         )
       )
       .orderBy(desc(inventoryItems.firstSeenAt))
       .limit(itemLimit * 3); // Get extra candidates in case some fail projection/validation
+
+    // Get generated creatives for candidate items
+    const itemIds = candidateItems.map((item) => item.id);
+    const creatives = itemIds.length > 0
+      ? await db
+          .select()
+          .from(creativeAssets)
+          .where(
+            and(
+              eq(creativeAssets.customerId, customerId),
+              inArray(creativeAssets.inventoryItemId, itemIds),
+              eq(creativeAssets.status, "generated")
+            )
+          )
+      : [];
+
+    // Map creatives by item ID and variant
+    const creativesByItem: Record<string, Record<string, string>> = {};
+    for (const creative of creatives) {
+      if (!creativesByItem[creative.inventoryItemId]) {
+        creativesByItem[creative.inventoryItemId] = {};
+      }
+      if (creative.generatedImageUrl) {
+        creativesByItem[creative.inventoryItemId][creative.variant] = creative.generatedImageUrl;
+      }
+    }
 
     // Project items for Meta
     const projectedItems: Array<{
@@ -549,6 +586,7 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       imageUrl: string;
       destinationUrl: string;
       vehicleId: string;
+      generatedImageUrl?: string; // Use generated creative if available
     }> = [];
     for (const item of candidateItems) {
       const projected = projectInventoryItemForMeta({
@@ -556,13 +594,16 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
         detailsJson: item.detailsJson as Record<string, unknown> | null,
       });
       if (projected) {
+        // Prefer generated feed creative, fallback to source image
+        const generatedFeedUrl = creativesByItem[item.id]?.["feed"];
         projectedItems.push({
           title: projected.title,
           priceAmount: projected.price,
           currency: projected.currency,
-          imageUrl: projected.imageUrl,
+          imageUrl: generatedFeedUrl ?? projected.imageUrl, // Use generated if available
           destinationUrl: projected.destinationUrl,
           vehicleId: projected.vehicleId,
+          ...(generatedFeedUrl ? { generatedImageUrl: generatedFeedUrl } : {}),
         });
         if (projectedItems.length >= itemLimit) {
           break;
@@ -570,12 +611,18 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
+    // Check if creatives need to be generated
+    const itemsNeedingCreatives = projectedItems.filter((item) => !item.generatedImageUrl);
+    const needsCreatives = itemsNeedingCreatives.length > 0;
+
     const ok = qaGatePassed && projectedItems.length > 0;
     const hint = !qaGatePassed
       ? `Scrape quality too low (${Math.round(invalidRatio * 100)}% invalid). Check Scrape QA panel or inventory quality.`
       : projectedItems.length === 0
         ? "No valid inventory items found for Meta ads. Ensure items have: price >= 50k SEK, valid image URL, valid HTTPS URL, and title."
-        : undefined;
+        : needsCreatives
+          ? `${itemsNeedingCreatives.length} item(s) need creative generation. Generate creatives in Ads → Preview.`
+          : undefined;
 
     return reply.send({
       ok,
@@ -588,6 +635,7 @@ export async function adsRoutes(app: FastifyInstance): Promise<void> {
       },
       projectedItems,
       hint,
+      needsCreatives,
     });
   });
 }

@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { db } from "../lib/db.js";
 import {
   adSettings,
@@ -12,6 +12,7 @@ import {
   adsBudgetPlans,
   onboardingStates,
   inventoryItems,
+  creativeAssets,
 } from "@repo/db/schema";
 import type { QueuedJob } from "@repo/queue";
 import { metaPost, type MetaGraphError } from "../lib/metaGraph.js";
@@ -317,6 +318,7 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
       console.log(JSON.stringify({ event: "ads_publish_ad_account_resolved", runId, customerId, adAccountMode, effectiveAdAccountId: maskAdAccountId(adAccountId) }));
 
       // Select latest N inventory items for Meta projection (N=2 for now)
+      // Only include items marked as ad-eligible
       const itemLimit = 2;
       const candidateItems = await db
         .select({
@@ -325,16 +327,44 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
           url: inventoryItems.url,
           price: inventoryItems.price,
           detailsJson: inventoryItems.detailsJson,
+          isAdEligible: inventoryItems.isAdEligible,
         })
         .from(inventoryItems)
         .where(
           and(
             eq(inventoryItems.customerId, customerId),
+            eq(inventoryItems.isAdEligible, true),
             sql`${inventoryItems.detailsJson} IS NOT NULL`
           )
         )
         .orderBy(desc(inventoryItems.firstSeenAt))
         .limit(itemLimit * 3); // Get extra candidates in case some fail projection/validation
+
+      // Get generated creatives for candidate items
+      const itemIds = candidateItems.map((item) => item.id);
+      const creatives = itemIds.length > 0
+        ? await db
+            .select()
+            .from(creativeAssets)
+            .where(
+              and(
+                eq(creativeAssets.customerId, customerId),
+                inArray(creativeAssets.inventoryItemId, itemIds),
+                eq(creativeAssets.status, "generated")
+              )
+            )
+        : [];
+
+      // Map creatives by item ID and variant (prefer feed variant)
+      const creativesByItem: Record<string, string> = {};
+      for (const creative of creatives) {
+        if (creative.generatedImageUrl) {
+          // Prefer feed variant, but accept any variant if feed not available
+          if (creative.variant === "feed" || !creativesByItem[creative.inventoryItemId]) {
+            creativesByItem[creative.inventoryItemId] = creative.generatedImageUrl;
+          }
+        }
+      }
 
       // Project items for Meta
       const projectedItems: MetaProjectedItem[] = [];
@@ -344,6 +374,11 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
           detailsJson: item.detailsJson as Record<string, unknown> | null,
         });
         if (projected) {
+          // Use generated creative if available, otherwise use source image
+          const generatedImageUrl = creativesByItem[item.id];
+          if (generatedImageUrl) {
+            projected.imageUrl = generatedImageUrl;
+          }
           projectedItems.push(projected);
           if (projectedItems.length >= itemLimit) {
             break;
@@ -353,6 +388,18 @@ export async function processAdsPublish(job: QueuedJob<Record<string, never>>): 
 
       if (projectedItems.length === 0) {
         const msg = "No valid inventory items found for Meta ads. Ensure items have: price >= 50k SEK, valid image URL, valid HTTPS URL, and title.";
+        await db
+          .update(adRuns)
+          .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })
+          .where(and(eq(adRuns.id, runId), eq(adRuns.customerId, customerId)));
+        await job.deadLetter(msg);
+        return;
+      }
+
+      // Check if all items have generated creatives (required for publish)
+      const itemsWithoutCreatives = projectedItems.filter((item) => !creativesByItem[item.vehicleId]);
+      if (itemsWithoutCreatives.length > 0) {
+        const msg = `Creatives not generated yet for ${itemsWithoutCreatives.length} item(s). Generate creatives in Ads → Preview before publishing.`;
         await db
           .update(adRuns)
           .set({ status: "failed", finishedAt: new Date(), errorMessage: msg })

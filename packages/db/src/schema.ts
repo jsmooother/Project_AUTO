@@ -323,6 +323,7 @@ export const inventoryItems = pgTable(
     url: text("url"),
     price: integer("price"),
     status: text("status").notNull().default("active"),
+    isAdEligible: boolean("is_ad_eligible").notNull().default(true),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
     detailsJson: jsonb("details_json"),
@@ -523,3 +524,31 @@ export const metaAdObjects = pgTable(
   },
   (t) => [unique().on(t.customerId)]
 );
+
+// Creative assets: generated images for Meta ads
+export const creativeAssets = pgTable("creative_assets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  inventoryItemId: uuid("inventory_item_id")
+    .notNull()
+    .references(() => inventoryItems.id, { onDelete: "cascade" }),
+  type: text("type").notNull().default("image"), // 'image'
+  variant: text("variant").notNull(), // 'feed' | 'story' | 'reel' | 'square'
+  sourceImageUrl: text("source_image_url").notNull(),
+  generatedImageUrl: text("generated_image_url"),
+  width: integer("width"),
+  height: integer("height"),
+  status: text("status").notNull().default("pending"), // 'pending' | 'generated' | 'failed'
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Customer branding: logo and brand colors
+export const customerBranding = pgTable("customer_branding", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  customerId: uuid("customer_id").notNull().unique().references(() => customers.id, { onDelete: "cascade" }),
+  logoUrl: text("logo_url"),
+  primaryColor: text("primary_color"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

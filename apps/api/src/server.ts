@@ -19,6 +19,7 @@ import { metaRoutes } from "./routes/meta.js";
 import { adsRoutes } from "./routes/ads.js";
 import { performanceRoutes } from "./routes/performance.js";
 import { billingRoutes } from "./routes/billing.js";
+import { creativesRoutes } from "./routes/creatives.js";
 
 const app = Fastify({ logger: true });
 
@@ -107,6 +108,7 @@ await app.register(metaRoutes);
 await app.register(adsRoutes);
 await app.register(performanceRoutes);
 await app.register(billingRoutes);
+await app.register(creativesRoutes);
 
 // Log configuration on startup
 function redactPassword(url: string | undefined): string {

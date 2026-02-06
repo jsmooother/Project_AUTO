@@ -21,6 +21,7 @@
       "dev:up": "./scripts/dev-up.sh",
       "dev:down": "./scripts/dev-down.sh",
       "dev:reset": "./scripts/dev-reset.sh",
+      "e2e:dev": "./scripts/e2e-dev.sh",
       "build": "turbo build",
       "lint": "turbo lint",
       "test": "turbo test",

@@ -109,6 +109,22 @@ export interface Translations {
     destinationUrl: string;
     viewItem: string;
     verifyMetaAccessCta: string;
+    preview: {
+      generateCreatives: string;
+      generating: string;
+      creativesReady: string;
+      creativesFailed: string;
+      notGeneratedYet: string;
+      proceedToPublishDisabledHint: string;
+    };
+  };
+  inventory: {
+    includeInAds: string;
+    includeAll: string;
+    excludeAll: string;
+    includeTop10: string;
+    selectionSaved: string;
+    selectionSaveFailed: string;
   };
   settings: {
     meta: {
@@ -140,6 +156,9 @@ export interface Translations {
       copied: string;
       showFull: string;
     };
+    discoverLogo: string;
+    logoDiscovered: string;
+    logoDiscoverFailed: string;
   };
   onboarding: {
     title: string;
@@ -337,6 +356,22 @@ export const translations: Record<Language, Translations> = {
       destinationUrl: "Mål-URL",
       viewItem: "Visa objekt",
       verifyMetaAccessCta: "Tillåt oss att publicera annonser",
+      preview: {
+        generateCreatives: "Generera kreativ",
+        generating: "Genererar...",
+        creativesReady: "Kreativ redo",
+        creativesFailed: "Kreativ misslyckades",
+        notGeneratedYet: "Inte genererad än",
+        proceedToPublishDisabledHint: "Generera kreativ först",
+      },
+    },
+    inventory: {
+      includeInAds: "Inkludera i annonser",
+      includeAll: "Inkludera alla",
+      excludeAll: "Exkludera alla",
+      includeTop10: "Inkludera 10 nyaste",
+      selectionSaved: "Val sparade",
+      selectionSaveFailed: "Kunde inte spara val",
     },
     settings: {
       meta: {
@@ -368,6 +403,9 @@ export const translations: Record<Language, Translations> = {
         copied: "Kopierat",
         showFull: "Visa hela",
       },
+      discoverLogo: "Upptäck logotyp",
+      logoDiscovered: "Logotyp upptäckt och sparad",
+      logoDiscoverFailed: "Kunde inte upptäcka logotyp",
     },
     onboarding: {
       title: "Kom igång",
@@ -563,6 +601,22 @@ export const translations: Record<Language, Translations> = {
       destinationUrl: "Destination URL",
       viewItem: "View Item",
       verifyMetaAccessCta: "Allow us to publish ads",
+      preview: {
+        generateCreatives: "Generate Creatives",
+        generating: "Generating...",
+        creativesReady: "Creatives Ready",
+        creativesFailed: "Creatives Failed",
+        notGeneratedYet: "Not Generated Yet",
+        proceedToPublishDisabledHint: "Generate creatives first",
+      },
+    },
+    inventory: {
+      includeInAds: "Include in ads",
+      includeAll: "Include All",
+      excludeAll: "Exclude All",
+      includeTop10: "Include Top 10 Newest",
+      selectionSaved: "Selection saved",
+      selectionSaveFailed: "Failed to save selection",
     },
     settings: {
       meta: {
@@ -594,6 +648,9 @@ export const translations: Record<Language, Translations> = {
         copied: "Copied",
         showFull: "Show full",
       },
+      discoverLogo: "Discover Logo",
+      logoDiscovered: "Logo discovered and saved",
+      logoDiscoverFailed: "Failed to discover logo",
     },
     onboarding: {
       title: "Get started",
