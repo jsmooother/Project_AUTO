@@ -3,11 +3,14 @@
 export default function AdminSystemConfigPage() {
   return (
     <div>
-      <h1 style={{ marginBottom: "0.5rem" }}>System Configuration</h1>
-      <p style={{ color: "#666", marginBottom: "2rem" }}>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>System</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>System health</p>
+      </div>
+      <p style={{ color: "#6b7280", marginBottom: "1rem" }}>
         Feature flags, rate limits, and integration health
       </p>
-      <p style={{ color: "#888" }}>System configuration UI not implemented yet.</p>
+      <p style={{ color: "#9ca3af" }}>System configuration UI not implemented yet.</p>
     </div>
   );
 }

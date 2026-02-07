@@ -55,15 +55,17 @@ export default function AdminRunDetailPage() {
 
   return (
     <div>
-      <Link href="/admin/runs" style={{ display: "inline-block", marginBottom: "1rem" }}>
+      <Link href="/admin/runs" style={{ display: "inline-block", marginBottom: "1rem", fontSize: "0.875rem", color: "#6b7280" }}>
         ← Back to runs
       </Link>
-      <h1 style={{ marginBottom: "0.5rem" }}>
-        Run {run.type} — {run.id.slice(0, 8)}…
-      </h1>
-      <p style={{ color: "#666", marginBottom: "1.5rem" }}>
-        Status: {run.status} · Trigger: {run.trigger}
-      </p>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>
+          Run {run.type} — {run.id.slice(0, 8)}…
+        </h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+          Status: {run.status} · Trigger: {run.trigger}
+        </p>
+      </div>
 
       {run.errorMessage && (
         <div

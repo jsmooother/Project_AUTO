@@ -18,7 +18,7 @@ export default function Home() {
         }}
       >
         <Link href="/" style={{ fontWeight: 600, fontSize: "1.25rem", letterSpacing: "-0.025em", color: "var(--pa-dark)" }}>
-          Project Auto
+          Agentic Ads
         </Link>
         <nav style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <Link href="/login" style={{ color: "var(--pa-gray)", fontSize: "0.875rem" }}>
@@ -157,7 +157,7 @@ export default function Home() {
             }}
           >
             {[
-              { Icon: Globe, step: "Step 1", title: "Connect your website URL", desc: "We automatically discover and track your inventory — vehicles, jobs, or any listing." },
+              { Icon: Globe, step: "Step 1", title: "Connect your website URL", desc: "We automatically discover and track your ad inventory — products, jobs, or any listing." },
               { Icon: Zap, step: "Step 2", title: "Connect ad accounts", desc: "Link Meta, X, and LinkedIn accounts. Choose templates and set brand settings." },
               { Icon: Play, step: "Step 3", title: "Set rules + budget", desc: "Ads run continuously and update automatically when inventory changes." },
             ].map(({ Icon, step, title, desc }) => (
@@ -436,7 +436,7 @@ export default function Home() {
             </div>
           </div>
           <div style={{ paddingTop: "2rem", borderTop: "1px solid var(--pa-border)", fontSize: "0.875rem", color: "var(--pa-gray)" }}>
-            © 2026 Project Auto. All rights reserved.
+            © 2026 Agentic Ads. All rights reserved.
           </div>
         </div>
       </footer>

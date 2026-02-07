@@ -160,7 +160,7 @@ function AutomationContent() {
         >
           {t.automation.title}
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
           {t.automation.description}
         </p>
       </div>

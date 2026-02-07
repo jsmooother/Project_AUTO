@@ -54,7 +54,7 @@ export default function ConnectWebsitePage() {
         >
           Connect website
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
           Add your inventory website URL so we can detect your listings
         </p>
       </div>

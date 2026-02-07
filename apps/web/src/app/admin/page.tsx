@@ -58,7 +58,8 @@ export default function AdminOverviewPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Admin Overview</h1>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Overview</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "1rem" }}>Admin dashboard</p>
         <p>Loading...</p>
       </div>
     );
@@ -67,7 +68,8 @@ export default function AdminOverviewPage() {
   if (error || !data) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Admin Overview</h1>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Overview</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "1rem" }}>Admin dashboard</p>
         <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
           {error ?? "Failed to load overview data"}
         </div>
@@ -80,7 +82,10 @@ export default function AdminOverviewPage() {
 
   return (
     <div>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "1.5rem" }}>Admin Overview</h1>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Overview</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Admin dashboard</p>
+      </div>
 
       {/* Key Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
@@ -127,7 +132,7 @@ export default function AdminOverviewPage() {
             <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>{data.ads.totalSpend.toLocaleString()} SEK</div>
           </div>
           <div>
-            <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.5rem" }}>Project Auto Fees</div>
+            <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.5rem" }}>Agentic Ads fees</div>
             <div style={{ fontSize: "1.25rem", fontWeight: 600 }}>—</div>
             <div style={{ fontSize: "0.75rem", color: "#666" }}>Not implemented</div>
           </div>

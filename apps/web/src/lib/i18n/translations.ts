@@ -94,6 +94,37 @@ export interface Translations {
     usd: string;
   };
   ads: {
+    pageTitle: string;
+    pageSubtitle: string;
+    tabStatus: string;
+    tabAutomation: string;
+    live: string;
+    statusActive: string;
+    lastSync: string;
+    advertisedItems: string;
+    metaCampaign: string;
+    metaCampaignDescription: string;
+    openAdsManager: string;
+    syncNow: string;
+    runManualSync: string;
+    productCatalog: string;
+    campaign: string;
+    dynamicProductAds: string;
+    automaticSync: string;
+    enableAutomaticSync: string;
+    checkNightly: string;
+    nextScheduledRun: string;
+    howItWorks: string;
+    autoCreateAds: string;
+    autoPauseAds: string;
+    budgetDistribution: string;
+    dailyMonitoring: string;
+    currentStatus: string;
+    mode: string;
+    lastRun: string;
+    healthy: string;
+    itemsSynced: string;
+    alwaysOn: string;
     testModeBanner: string;
     testModeBannerDescription: string;
     previewTitle: string;
@@ -127,7 +158,11 @@ export interface Translations {
     selectionSaveFailed: string;
   };
   settings: {
+    title: string;
+    subtitle: string;
     meta: {
+      sectionTitle: string;
+      sectionDescription: string;
       step1Optional: string;
       step2SelectAdAccount: string;
       step3GrantPartnerAccess: string;
@@ -168,7 +203,35 @@ export interface Translations {
     startTitle: string;
     startDescription: string;
     startReassurance: string;
+    tagline: string;
+    setupTime: string;
+    whatYoullDo: string;
+    stepConnectWebsite: string;
+    stepConnectWebsiteSub: string;
+    stepConnectMeta: string;
+    stepConnectMetaSub: string;
+    stepLaunchAds: string;
+    stepLaunchAdsSub: string;
+    companyNameLabel: string;
+    companyWebsiteLabel: string;
+    companyWebsiteOptional: string;
+    companyNamePlaceholder: string;
+    companyWebsitePlaceholder: string;
+    companyNameHint: string;
+    companyWebsiteHint: string;
+    nextStep: string;
+    trustFooter: string;
+    nextUp: string;
+    nextUpConnectInventory: string;
+    nextUpConnectMeta: string;
+    saving: string;
     getStarted: string;
+    connectYourWebsite: string;
+    connectStepTime: string;
+    connectCardTitle: string;
+    connectCardSubtitle: string;
+    connectPullInventory: string;
+    connectCreateAds: string;
     inventoryTitle: string;
     inventoryDescription: string;
     inventoryReassurance: string;
@@ -218,6 +281,16 @@ export interface Translations {
     saved: string;
     saveFailed: string;
     adsInventoryNote: string;
+    skipNow: string;
+    setupTitle: string;
+    setupDescription: string;
+    setupOptional: string;
+    continueToDashboard: string;
+    guidesTitle: string;
+    guidesIntro: string;
+    guideConnectWebsite: string;
+    guideConnectMeta: string;
+    guideSettings: string;
   };
   dashboard: {
     title: string;
@@ -243,6 +316,11 @@ export interface Translations {
     campaignPausedHint: string;
     noDataYet: string;
     noDataYetHelper: string;
+    overview: string;
+    automationSummary: string;
+    adsRunning: string;
+    attentionNeeded: string;
+    itemsLabel: string;
   };
 }
 
@@ -341,6 +419,37 @@ export const translations: Record<Language, Translations> = {
       usd: "USD",
     },
     ads: {
+      pageTitle: "Annonser",
+      pageSubtitle: "Din Meta-kampanjstatus och automation",
+      tabStatus: "Status",
+      tabAutomation: "Automation",
+      live: "Live",
+      statusActive: "Aktiv",
+      lastSync: "Senaste synk",
+      advertisedItems: "Annonserade objekt",
+      metaCampaign: "Meta-kampanj",
+      metaCampaignDescription: "Dina annonsobjekt på Meta",
+      openAdsManager: "Öppna Ads Manager",
+      syncNow: "Synka nu",
+      runManualSync: "Kör manuell synk",
+      productCatalog: "Produktkatalog",
+      campaign: "Kampanj",
+      dynamicProductAds: "Dynamiska produktannonser",
+      automaticSync: "Automatisk synkronisering",
+      enableAutomaticSync: "Aktivera automatisk synk",
+      checkNightly: "Kontrollera nya och borttagna objekt varje natt",
+      nextScheduledRun: "Nästa schemalagda körning",
+      howItWorks: "Hur det fungerar",
+      autoCreateAds: "Skapa annonser automatiskt:",
+      autoPauseAds: "Pausa annonser automatiskt:",
+      budgetDistribution: "Budgetfördelning:",
+      dailyMonitoring: "Daglig övervakning:",
+      currentStatus: "Aktuell status",
+      mode: "Läge",
+      lastRun: "Senaste körning",
+      healthy: "Hälsosam",
+      itemsSynced: "Synkade objekt",
+      alwaysOn: "Alltid på",
       testModeBanner: "Intern Meta-testläge aktiv",
       testModeBannerDescription: "Publicering använder Project Auto annonskonto. Endast för intern testning.",
       previewTitle: "Förhandsgranska annonser",
@@ -374,7 +483,11 @@ export const translations: Record<Language, Translations> = {
       selectionSaveFailed: "Kunde inte spara val",
     },
     settings: {
+      title: "Inställningar",
+      subtitle: "Hantera ditt konto och anslutningar",
       meta: {
+        sectionTitle: "Meta-anslutning",
+        sectionDescription: "Facebook & Instagram Ads",
         step1Optional: "Steg 1 (valfritt)",
         step2SelectAdAccount: "Steg 2",
         step3GrantPartnerAccess: "Steg 3",
@@ -412,18 +525,46 @@ export const translations: Record<Language, Translations> = {
       step: "Steg",
       back: "Tillbaka",
       continue: "Fortsätt",
-      startTitle: "Välkommen till Project Auto",
-      startDescription: "Vi hjälper dig att automatisera annonser för dina fordon. Installationen tar cirka 5 minuter.",
+      startTitle: "Välkommen till Agentic Ads",
+      startDescription: "Vi hjälper dig att automatisera annonser för din annonsinventar. Installationen tar cirka 5 minuter.",
       startReassurance: "Inga annonser publiceras förrän du godkänner det.",
+      tagline: "Smarter ads. Zero busywork.",
+      setupTime: "Cirka 5 minuter",
+      whatYoullDo: "Så här går det till:",
+      stepConnectWebsite: "Anslut webbplats",
+      stepConnectWebsiteSub: "URL till din inventar",
+      stepConnectMeta: "Anslut Meta",
+      stepConnectMetaSub: "Facebook & Instagram",
+      stepLaunchAds: "Starta annonser",
+      stepLaunchAdsSub: "Budget och automation",
+      companyNameLabel: "Företagsnamn",
+      companyWebsiteLabel: "Webbplats",
+      companyWebsiteOptional: "(valfritt)",
+      companyNamePlaceholder: "Acme Bil AB",
+      companyWebsitePlaceholder: "https://mittforetag.se",
+      companyNameHint: "Namnet på ditt företag eller varumärke",
+      companyWebsiteHint: "Din huvudsakliga webbplats (behöver inte vara lagersidan)",
+      nextStep: "Nästa steg",
+      trustFooter: "Säker & privat. Vi skyddar dina data enligt GDPR.",
+      nextUp: "Nästa:",
+      nextUpConnectInventory: "Anslut din lagersida",
+      nextUpConnectMeta: "Anslut Meta-konto för publicering",
+      saving: "Sparar...",
       getStarted: "Kom igång",
+      connectYourWebsite: "Anslut din webbplats",
+      connectStepTime: "Steg 2 av 3 • cirka 2 min",
+      connectCardTitle: "Anslut din webbplats",
+      connectCardSubtitle: "Vi hämtar automatiskt din inventar. Anslut webbplatsen så skapar vi annonser för alla dina produkter.",
+      connectPullInventory: "Vi hämtar automatiskt din inventar",
+      connectCreateAds: "Anslut webbplatsen så skapar vi annonser för alla dina produkter.",
       inventoryTitle: "Anslut ditt lager",
-      inventoryDescription: "Ange webbadressen till din lagersida så hämtar vi automatiskt dina fordon.",
-      inventoryReassurance: "Vi hämtar endast information om fordon – inga annonser skapas ännu.",
+      inventoryDescription: "Ange webbadressen till din lagersida så hämtar vi automatiskt din inventar.",
+      inventoryReassurance: "Vi hämtar endast produktinformation – inga annonser skapas ännu.",
       websiteUrl: "Webbplats-URL",
-      runCrawl: "Hämta fordon",
-      runCrawlHelper: "Klicka här för att leta efter fordon på din webbplats",
+      runCrawl: "Hämta inventar",
+      runCrawlHelper: "Klicka här för att söka efter inventar på din webbplats",
       crawlStarting: "Hämtar…",
-      itemsDetected: "fordon hittade",
+      itemsDetected: "objekt hittade",
       previewTitle: "Välj hur dina annonser ska se ut",
       previewDescription: "Välj en annonsdesign och förhandsgranska hur den kommer att se ut.",
       previewReassurance: "Du kan ändra design när som helst – ingenting publiceras ännu.",
@@ -447,7 +588,7 @@ export const translations: Record<Language, Translations> = {
       readyToActivate: "Redo att aktivera",
       notReadyYet: "Inte redo än",
       adsTitle: "Var ska annonserna visas?",
-      adsDescription: "Välj område och format så skapar vi automatiskt annonser för varje fordon.",
+      adsDescription: "Välj område och format så skapar vi automatiskt annonser för varje objekt i inventariet.",
       adsReassurance: "Alla annonser skapas pausade – du bestämmer när de ska börja köras.",
       adsBudgetLabel: "Månatlig budget (SEK, valfritt)",
       adsGeoLabel: "Vilket område ska vi rikta oss till?",
@@ -464,7 +605,17 @@ export const translations: Record<Language, Translations> = {
       saveAndContinue: "Spara och fortsätt",
       saved: "Sparat",
       saveFailed: "Kunde inte spara",
-      adsInventoryNote: "Vi hittar annonsinställningar för era {count} fordon",
+      adsInventoryNote: "Vi hittar annonsinställningar för era {count} objekt",
+      skipNow: "Hoppa över",
+      setupTitle: "Anslut när du vill",
+      setupDescription: "Du kan ansluta din webbplats och Facebook/Instagram nu eller senare från Inställningar. Vi har guider som visar hur allt fungerar.",
+      setupOptional: "Allt nedan är valfritt – du kan hoppa över och utforska översikten och guiderna direkt.",
+      continueToDashboard: "Gå till översikt",
+      guidesTitle: "Så hjälper vi dig",
+      guidesIntro: "Utforska översikten och använd guiderna nedan när du är redo att sätta upp allt.",
+      guideConnectWebsite: "Anslut webbplats – Vi hämtar din inventar automatiskt från din lagersida.",
+      guideConnectMeta: "Anslut Facebook/Instagram – Krävs för att publicera annonser. Du kan göra det när du har tillgång.",
+      guideSettings: "Inställningar – Här ansluter du webbplats, Meta-konto och ser dina preferenser.",
     },
     dashboard: {
       title: "Översikt",
@@ -486,10 +637,15 @@ export const translations: Record<Language, Translations> = {
       lowCreditsRunway: "Låg kreditkvarvarande. Fyll på eller uppgradera.",
       topUpCta: "Fyll på / Billing",
       scaleSuggestion: "Bra prestanda! Överväg att öka budgeten för att nå fler kunder.",
-      inventoryIncreased: "Nya fordon upptäckta i lagret.",
+      inventoryIncreased: "Ny inventar upptäckt i lagret.",
       campaignPausedHint: "Dina kampanjer kan vara pausade. Aktivera dem i Annonser.",
       noDataYet: "Inga data än",
       noDataYetHelper: "Data visas när dina annonser börjar köras. Detta kan ta 24-48 timmar efter aktivering.",
+      overview: "Översikt",
+      automationSummary: "Din automationssammanfattning",
+      adsRunning: "Annonser körs",
+      attentionNeeded: "Uppmärksamhet behövs",
+      itemsLabel: "objekt",
     },
   },
   en: {
@@ -586,6 +742,37 @@ export const translations: Record<Language, Translations> = {
       usd: "USD",
     },
     ads: {
+      pageTitle: "Ads",
+      pageSubtitle: "Your Meta campaign status and automation",
+      tabStatus: "Status",
+      tabAutomation: "Automation",
+      live: "Live",
+      statusActive: "Active",
+      lastSync: "Last sync",
+      advertisedItems: "Advertised items",
+      metaCampaign: "Meta campaign",
+      metaCampaignDescription: "Your ad objects on Meta",
+      openAdsManager: "Open Ads Manager",
+      syncNow: "Sync now",
+      runManualSync: "Run manual sync",
+      productCatalog: "Product Catalog",
+      campaign: "Campaign",
+      dynamicProductAds: "Dynamic Product Ads",
+      automaticSync: "Automatic sync",
+      enableAutomaticSync: "Enable automatic sync",
+      checkNightly: "Check for new and removed items nightly",
+      nextScheduledRun: "Next scheduled run",
+      howItWorks: "How it works",
+      autoCreateAds: "Auto-create ads:",
+      autoPauseAds: "Auto-pause ads:",
+      budgetDistribution: "Budget distribution:",
+      dailyMonitoring: "Daily monitoring:",
+      currentStatus: "Current status",
+      mode: "Mode",
+      lastRun: "Last run",
+      healthy: "Healthy",
+      itemsSynced: "Items synced",
+      alwaysOn: "Always On",
       testModeBanner: "Internal Meta test mode active",
       testModeBannerDescription: "Publishing uses Project Auto ad account. This is for internal testing only.",
       previewTitle: "Preview Ads",
@@ -619,7 +806,11 @@ export const translations: Record<Language, Translations> = {
       selectionSaveFailed: "Failed to save selection",
     },
     settings: {
+      title: "Settings",
+      subtitle: "Manage your account and connections",
       meta: {
+        sectionTitle: "Meta connection",
+        sectionDescription: "Facebook & Instagram Ads",
         step1Optional: "Step 1 (optional)",
         step2SelectAdAccount: "Step 2",
         step3GrantPartnerAccess: "Step 3",
@@ -657,18 +848,46 @@ export const translations: Record<Language, Translations> = {
       step: "Step",
       back: "Back",
       continue: "Continue",
-      startTitle: "Welcome to Project Auto",
-      startDescription: "We'll help you automate ads for your vehicles. Setup takes about 5 minutes.",
+      startTitle: "Welcome to Agentic Ads",
+      startDescription: "We'll help you automate ads for your ad inventory. Setup takes about 5 minutes.",
       startReassurance: "No ads will be published until you approve them.",
+      tagline: "Smarter ads. Zero busywork.",
+      setupTime: "Set up in about 5 minutes",
+      whatYoullDo: "What you'll do:",
+      stepConnectWebsite: "Connect website",
+      stepConnectWebsiteSub: "URL to your inventory",
+      stepConnectMeta: "Connect Meta",
+      stepConnectMetaSub: "Facebook & Instagram",
+      stepLaunchAds: "Launch ads",
+      stepLaunchAdsSub: "Budget & automation",
+      companyNameLabel: "Company name",
+      companyWebsiteLabel: "Website",
+      companyWebsiteOptional: "(optional)",
+      companyNamePlaceholder: "Acme Auto Ltd",
+      companyWebsitePlaceholder: "https://acmeauto.com",
+      companyNameHint: "The name of your business or brand",
+      companyWebsiteHint: "Your main website (not necessarily where inventory is)",
+      nextStep: "Next step",
+      trustFooter: "Secure & private. We protect your data according to GDPR.",
+      nextUp: "Next up:",
+      nextUpConnectInventory: "Connect your inventory page",
+      nextUpConnectMeta: "Connect Meta account for publishing",
+      saving: "Saving...",
       getStarted: "Get started",
+      connectYourWebsite: "Connect your website",
+      connectStepTime: "Step 2 of 3 • ~2 minutes",
+      connectCardTitle: "Connect your website",
+      connectCardSubtitle: "We automatically pull your inventory. Connect your website and we'll create ads for all your products.",
+      connectPullInventory: "We automatically pull your inventory",
+      connectCreateAds: "Connect your website and we'll create ads for all your products.",
       inventoryTitle: "Connect your inventory",
-      inventoryDescription: "Enter the URL to your inventory page and we'll automatically fetch your vehicles.",
-      inventoryReassurance: "We only fetch vehicle information – no ads are created yet.",
+      inventoryDescription: "Enter the URL to your inventory page and we'll automatically fetch your items.",
+      inventoryReassurance: "We only fetch product information – no ads are created yet.",
       websiteUrl: "Website URL",
-      runCrawl: "Fetch vehicles",
-      runCrawlHelper: "Click here to search for vehicles on your website",
+      runCrawl: "Fetch inventory",
+      runCrawlHelper: "Click here to search for inventory on your website",
       crawlStarting: "Fetching…",
-      itemsDetected: "vehicles found",
+      itemsDetected: "items found",
       previewTitle: "Choose how your ads will look",
       previewDescription: "Select an ad design and preview how it will appear.",
       previewReassurance: "You can change the design anytime – nothing is published yet.",
@@ -692,7 +911,7 @@ export const translations: Record<Language, Translations> = {
       readyToActivate: "Ready to activate",
       notReadyYet: "Not ready yet",
       adsTitle: "Where should ads appear?",
-      adsDescription: "Choose area and formats, and we'll automatically create ads for each vehicle.",
+      adsDescription: "Choose area and formats, and we'll automatically create ads for each inventory item.",
       adsReassurance: "All ads are created paused – you decide when they should start running.",
       adsBudgetLabel: "Monthly budget (SEK, optional)",
       adsGeoLabel: "Which area should we target?",
@@ -709,7 +928,17 @@ export const translations: Record<Language, Translations> = {
       saveAndContinue: "Save and continue",
       saved: "Saved",
       saveFailed: "Save failed",
-      adsInventoryNote: "We'll set up ads for your {count} vehicles",
+      adsInventoryNote: "We'll set up ads for your {count} items",
+      skipNow: "Skip for now",
+      setupTitle: "Connect when you're ready",
+      setupDescription: "You can connect your website and Facebook/Instagram now or later from Settings. We have guides that show how everything works.",
+      setupOptional: "Everything below is optional – you can skip and explore the dashboard and guides right away.",
+      continueToDashboard: "Go to dashboard",
+      guidesTitle: "How we help you",
+      guidesIntro: "Explore the dashboard and use the guides below when you're ready to set everything up.",
+      guideConnectWebsite: "Connect website – We fetch your inventory automatically from your listing page.",
+      guideConnectMeta: "Connect Facebook/Instagram – Required to publish ads. You can do it when you have access.",
+      guideSettings: "Settings – Here you connect your website, Meta account, and manage your preferences.",
     },
     dashboard: {
       title: "Dashboard",
@@ -731,10 +960,15 @@ export const translations: Record<Language, Translations> = {
       lowCreditsRunway: "Low credits runway. Top up or upgrade.",
       topUpCta: "Top up / Billing",
       scaleSuggestion: "Strong performance! Consider increasing budget to reach more customers.",
-      inventoryIncreased: "New vehicles detected in inventory.",
+      inventoryIncreased: "New items detected in inventory.",
       campaignPausedHint: "Your campaigns may be paused. Activate them in Ads.",
       noDataYet: "No data yet",
       noDataYetHelper: "Data will appear when your ads start running. This can take 24-48 hours after activation.",
+      overview: "Overview",
+      automationSummary: "Your automation summary",
+      adsRunning: "Ads Running",
+      attentionNeeded: "Attention needed",
+      itemsLabel: "items",
     },
   },
 };

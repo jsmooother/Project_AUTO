@@ -1,299 +1,144 @@
 import { Link } from "react-router";
 import { Button } from "@/app/components/ui/button";
-import { Card, CardContent } from "@/app/components/ui/card";
-import { ArrowRight, Globe, Zap, BarChart3, RefreshCw, Play } from "lucide-react";
+import { Sparkles, Play, Globe, Zap, Target } from "lucide-react";
 
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="border-b border-gray-200">
+      <header className="border-b border-gray-100">
         <div className="mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="text-xl font-semibold tracking-tight">Project Auto</div>
-            <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="ghost">Log in</Button>
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <span className="text-xl font-bold text-gray-900">Agentic Ads</span>
+            </Link>
+
+            {/* Navigation */}
+            <div className="flex items-center gap-8">
+              <Link to="/features" className="text-gray-600 hover:text-gray-900">
+                Features
+              </Link>
+              <Link to="/pricing" className="text-gray-600 hover:text-gray-900">
+                Pricing
+              </Link>
+              <Link to="/login" className="text-gray-600 hover:text-gray-900">
+                Log in
               </Link>
               <Link to="/signup">
-                <Button>Get started</Button>
+                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-6">
+                  Get Started Free
+                </Button>
               </Link>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="mx-auto max-w-7xl px-6 py-24">
-        <div className="max-w-3xl">
-          <h1 className="text-5xl font-semibold tracking-tight mb-6">
-            Smarter ads. Zero busywork.
+      {/* Hero Section */}
+      <section className="mx-auto max-w-7xl px-6 pt-20 pb-32">
+        <div className="flex flex-col items-center text-center">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-50 text-indigo-700 text-sm mb-8">
+            <Sparkles className="h-4 w-4" />
+            Turn your inventory into ads automatically
+          </div>
+
+          {/* Headline */}
+          <h1 className="max-w-4xl">
+            <div className="text-6xl font-bold tracking-tight text-gray-900 mb-2">
+              Your inventory.
+            </div>
+            <div className="text-6xl font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+              Automated ads.
+            </div>
+            <div className="text-6xl font-bold tracking-tight text-gray-900">
+              Every platform.
+            </div>
           </h1>
-          <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-            Connect your website inventory, choose templates, set budget — we keep ads updated
-            with new and removed listings automatically.
+
+          {/* Subheadline */}
+          <p className="text-xl text-gray-600 mt-8 max-w-2xl">
+            We turn your vehicle inventory into high-performing ads on Meta, TikTok, and LinkedIn. Automatically.
           </p>
-          <div className="flex items-center gap-4">
+
+          {/* CTA Buttons */}
+          <div className="flex items-center gap-4 mt-10">
             <Link to="/signup">
-              <Button size="lg" className="gap-2">
-                Get started
-                <ArrowRight className="h-4 w-4" />
+              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-8 py-6 text-lg flex items-center gap-2">
+                <Play className="h-5 w-5 fill-current" />
+                Start Free Trial
               </Button>
             </Link>
-            <Button size="lg" variant="outline">
-              Book demo
+            <Button variant="outline" className="rounded-lg px-8 py-6 text-lg border-gray-300">
+              Watch Demo →
             </Button>
           </div>
-        </div>
 
-        {/* Trusted by */}
-        <div className="mt-16 pt-16 border-t border-gray-200">
-          <p className="text-sm text-gray-500 mb-6">Trusted by industry leaders</p>
-          <div className="flex items-center gap-12 opacity-40">
-            <div className="h-8 w-24 bg-gray-300 rounded" />
-            <div className="h-8 w-24 bg-gray-300 rounded" />
-            <div className="h-8 w-24 bg-gray-300 rounded" />
-            <div className="h-8 w-24 bg-gray-300 rounded" />
+          {/* Trust Badge */}
+          <div className="flex items-center gap-2 text-sm text-gray-500 mt-6">
+            <Sparkles className="h-4 w-4 text-yellow-500" />
+            Free trial • No credit card • 5-minute setup
           </div>
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="bg-gray-50 py-24">
+      {/* How it Works Section */}
+      <section className="bg-gray-50 py-20">
         <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-16">
-            <h2 className="text-3xl font-semibold tracking-tight mb-4">How it works</h2>
-            <p className="text-lg text-gray-600">Three simple steps to automated ads</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-8">
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <Globe className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="text-sm font-medium text-gray-500 mb-2">Step 1</div>
-                <h3 className="text-lg font-semibold mb-2">Connect your website URL</h3>
-                <p className="text-gray-600">
-                  We automatically discover and track your inventory — vehicles, jobs, or any
-                  listing.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <Zap className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="text-sm font-medium text-gray-500 mb-2">Step 2</div>
-                <h3 className="text-lg font-semibold mb-2">Connect ad accounts</h3>
-                <p className="text-gray-600">
-                  Link Meta, X, and LinkedIn accounts. Choose templates and set brand settings.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <Play className="h-6 w-6 text-blue-600" />
-                </div>
-                <div className="text-sm font-medium text-gray-500 mb-2">Step 3</div>
-                <h3 className="text-lg font-semibold mb-2">Set rules + budget</h3>
-                <p className="text-gray-600">
-                  Ads run continuously and update automatically when inventory changes.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-16">
-            <h2 className="text-3xl font-semibold tracking-tight mb-4">
-              Automation + transparency + control
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+              Watch it work in real-time
             </h2>
-            <p className="text-lg text-gray-600">
-              Not a black box. You see everything and stay in control.
+            <p className="text-gray-600">
+              Your website becomes ads in seconds
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center mb-4">
-                  <Zap className="h-6 w-6 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Create</h3>
-                <p className="text-gray-600 mb-4">
-                  Choose from templates, customize brand settings, and preview ads before launch.
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Template library</li>
-                  <li>• Brand customization</li>
-                  <li>• Live previews</li>
-                </ul>
-              </CardContent>
-            </Card>
+          {/* 3-Step Visualization */}
+          <div className="flex items-center justify-center gap-12 mt-16">
+            {/* Step 1: Your Website */}
+            <div className="flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-indigo-600 flex items-center justify-center mb-4">
+                <Globe className="h-10 w-10 text-white" />
+              </div>
+              <div className="text-lg font-semibold text-gray-900 mb-1">Your Website</div>
+              <div className="text-sm text-gray-500">Live inventory</div>
+            </div>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center mb-4">
-                  <RefreshCw className="h-6 w-6 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Automate</h3>
-                <p className="text-gray-600 mb-4">
-                  Always-on campaigns sync nightly. On-demand campaigns run when you need them.
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Always-on mode</li>
-                  <li>• On-demand runs</li>
-                  <li>• Inventory tracking</li>
-                </ul>
-              </CardContent>
-            </Card>
+            {/* Arrow */}
+            <div className="flex items-center">
+              <Sparkles className="h-8 w-8 text-purple-400" />
+            </div>
 
-            <Card>
-              <CardContent className="pt-6">
-                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center mb-4">
-                  <BarChart3 className="h-6 w-6 text-purple-600" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">Analyze</h3>
-                <p className="text-gray-600 mb-4">
-                  Complete visibility into runs, logs, and performance. Full run history and
-                  reproducibility.
-                </p>
-                <ul className="text-sm text-gray-600 space-y-1">
-                  <li>• Performance reporting</li>
-                  <li>• Run logs & history</li>
-                  <li>• Confidence scores</li>
-                </ul>
-              </CardContent>
-            </Card>
+            {/* Step 2: Agentic Ads */}
+            <div className="flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center mb-4">
+                <Zap className="h-10 w-10 text-indigo-600" />
+              </div>
+              <div className="text-lg font-semibold text-gray-400 mb-1">Agentic Ads</div>
+              <div className="text-sm text-gray-400"></div>
+            </div>
+
+            {/* Arrow */}
+            <div className="flex items-center">
+              <Sparkles className="h-8 w-8 text-purple-400" />
+            </div>
+
+            {/* Step 3: Live Ads */}
+            <div className="flex flex-col items-center">
+              <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <Target className="h-10 w-10 text-green-600" />
+              </div>
+              <div className="text-lg font-semibold text-gray-900 mb-1">Live Ads</div>
+              <div className="text-sm text-gray-500">All platforms</div>
+            </div>
           </div>
         </div>
       </section>
-
-      {/* Always On vs On Demand */}
-      <section className="bg-gray-50 py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-16">
-            <h2 className="text-3xl font-semibold tracking-tight mb-4">
-              Always On vs On Demand
-            </h2>
-            <p className="text-lg text-gray-600">Two modes. One platform. Total control.</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-8 max-w-4xl">
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <RefreshCw className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-xl font-semibold">Always On</h3>
-                </div>
-                <p className="text-gray-600 mb-4">
-                  Set it and forget it. Ads sync nightly and update automatically as your
-                  inventory changes.
-                </p>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li>✓ Scheduled syncs (nightly default)</li>
-                  <li>✓ Automatic new listing detection</li>
-                  <li>✓ Automatic removed listing cleanup</li>
-                  <li>✓ Budget managed automatically</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Play className="h-5 w-5 text-green-600" />
-                  <h3 className="text-xl font-semibold">On Demand</h3>
-                </div>
-                <p className="text-gray-600 mb-4">
-                  Run campaigns when you need them. Perfect for special promotions or testing.
-                </p>
-                <ul className="text-sm text-gray-600 space-y-2">
-                  <li>✓ Manual trigger anytime</li>
-                  <li>✓ Preview before launch</li>
-                  <li>✓ Budget per campaign</li>
-                  <li>✓ Full run history</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="bg-gray-900 rounded-2xl px-16 py-16 text-center">
-            <h2 className="text-3xl font-semibold tracking-tight text-white mb-4">
-              Ready to automate your ads?
-            </h2>
-            <p className="text-lg text-gray-300 mb-8">
-              Start free. No credit card required.
-            </p>
-            <Link to="/signup">
-              <Button size="lg" variant="secondary" className="gap-2">
-                Get started
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-gray-200 py-12">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="grid grid-cols-4 gap-8">
-            <div>
-              <div className="font-semibold mb-4">Product</div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>Features</li>
-                <li>Pricing</li>
-                <li>Documentation</li>
-                <li>API</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-4">Company</div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>About</li>
-                <li>Blog</li>
-                <li>Careers</li>
-                <li>Contact</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-4">Resources</div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>Help Center</li>
-                <li>Community</li>
-                <li>Partners</li>
-                <li>Status</li>
-              </ul>
-            </div>
-            <div>
-              <div className="font-semibold mb-4">Legal</div>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li>Privacy</li>
-                <li>Terms</li>
-                <li>Security</li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-12 pt-8 border-t border-gray-200 text-sm text-gray-500">
-            © 2026 Project Auto. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

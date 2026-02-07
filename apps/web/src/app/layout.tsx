@@ -10,7 +10,7 @@ export default function RootLayout({
   return (
     <html lang="sv">
       <head>
-        <title>Project AUTO</title>
+        <title>Agentic Ads</title>
       </head>
       <body>
         <I18nProvider>

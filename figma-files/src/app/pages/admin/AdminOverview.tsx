@@ -354,7 +354,7 @@ export function AdminOverview() {
                 <span className="font-medium">$842,340</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-blue-600">Project Auto fees</span>
+                <span className="text-blue-600">Agentic Ads fees</span>
                 <span className="font-medium">$25,270</span>
               </div>
               <div className="flex items-center justify-between">

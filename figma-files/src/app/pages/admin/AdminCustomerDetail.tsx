@@ -345,7 +345,7 @@ export function AdminCustomerDetail() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <div className="text-lg font-semibold text-blue-600">$97.20</div>
-                  <div className="text-gray-600">Project Auto fee</div>
+                  <div className="text-gray-600">Agentic Ads fee</div>
                 </div>
               </div>
 

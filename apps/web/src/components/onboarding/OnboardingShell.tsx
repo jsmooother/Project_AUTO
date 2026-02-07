@@ -11,8 +11,10 @@ export interface OnboardingShellProps {
   primaryLabel: string;
   onPrimary: () => void;
   onBack?: () => void;
+  onSkip?: () => void;
   primaryDisabled?: boolean;
   status?: OnboardingStatusResult | null;
+  showStatusBox?: boolean;
 }
 
 export function OnboardingShell({
@@ -22,8 +24,10 @@ export function OnboardingShell({
   primaryLabel,
   onPrimary,
   onBack,
+  onSkip,
   primaryDisabled = false,
   status,
+  showStatusBox = false,
 }: OnboardingShellProps) {
   const { t } = useI18n();
 
@@ -61,12 +65,13 @@ export function OnboardingShell({
               padding: "1rem 1.5rem",
               borderTop: "1px solid var(--pa-border)",
               display: "flex",
+              flexWrap: "wrap",
               justifyContent: "space-between",
               alignItems: "center",
               gap: "0.75rem",
             }}
           >
-            <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               {onBack && (
                 <button
                   type="button"
@@ -83,6 +88,25 @@ export function OnboardingShell({
                   }}
                 >
                   {t.onboarding.back}
+                </button>
+              )}
+              {onSkip && (
+                <button
+                  type="button"
+                  onClick={onSkip}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    border: "none",
+                    borderRadius: 6,
+                    background: "transparent",
+                    color: "var(--pa-gray)",
+                    cursor: "pointer",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    textDecoration: "underline",
+                  }}
+                >
+                  {t.onboarding.skipNow}
                 </button>
               )}
             </div>
@@ -106,7 +130,7 @@ export function OnboardingShell({
           </div>
         </div>
 
-        {status && (
+        {showStatusBox && status && (
           <div
             style={{
               marginTop: "1rem",

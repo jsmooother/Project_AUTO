@@ -6,9 +6,9 @@
 
 ## 1. Product Overview (as implemented)
 
-**Agentic Ads** is a SaaS platform that automates Meta (Facebook/Instagram) advertising for non-technical advertisers, specifically targeting businesses with inventory catalogs (e.g., car dealerships). The product crawls customer websites to extract inventory items, generates ad creatives with overlays (price, title, logo), and publishes paused campaigns to Meta. Customers see only delivery metrics (impressions, clicks, CTR, reach) and their credit balance—never Meta spend, CPC, CPM, or cost data. The system uses a credit-based billing model where customers purchase credits (SEK) that are consumed based on their plan (time-based daily burn or impression-based CPM).
+**Agentic Ads** is an agentic ads buyer: a SaaS platform that automates advertising on Meta (Facebook/Instagram) and is built to support TikTok, LinkedIn, and other channels. It targets businesses with online ad inventory of any kind. The product crawls customer websites to index and extract inventory items, generates ad creatives with overlays (price, title, logo), and publishes paused campaigns to Meta. Customers see only delivery metrics (impressions, clicks, CTR, reach) and their credit balance—never Meta spend, CPC, CPM, or cost data. The system uses a credit-based billing model where customers purchase credits (SEK) that are consumed based on their plan (time-based daily burn or impression-based CPM).
 
-**User persona:** Non-technical advertiser (e.g., car dealership owner) who wants automated Meta ads without managing campaigns, budgets, or creative design.
+**User persona:** Non-technical advertiser with online inventory (products, listings, jobs, etc.) who wants automated Meta ads without managing campaigns, budgets, or creative design.
 
 **Problem solved:** Eliminates manual Meta campaign setup, creative design, and ongoing management. Handles inventory sync, creative generation, and campaign publishing automatically.
 
@@ -408,7 +408,7 @@
 4. **Creative requirement:** Fetches `creative_assets` for eligible items, uses `generatedImageUrl` for Meta creatives. Fails if required creatives missing.
 5. **Meta API calls:**
    - Creates catalog (if not exists)
-   - Creates catalog item (vehicle)
+   - Creates catalog item (inventory item)
    - Creates campaign (status: "PAUSED")
    - Creates adset (status: "PAUSED", targeting from `ad_settings`)
    - Creates ad creative (uses `generatedImageUrl` or source image)

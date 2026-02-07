@@ -97,17 +97,17 @@ function RunsContent() {
         <div>
           <h1
             style={{
-              fontSize: "1.875rem",
+              fontSize: "1.5rem",
               fontWeight: 600,
               letterSpacing: "-0.025em",
-              marginBottom: "0.5rem",
+              marginBottom: "0.25rem",
               color: "var(--pa-dark)",
             }}
           >
-            Automation
+            Runs
           </h1>
-          <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
-            View all probe and sync run history
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+            Automation run history
           </p>
         </div>
         {runType === "crawl" && hasSource && (

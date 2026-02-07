@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 const SIDEBAR_LINKS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/inventory-sources", label: "Inventory Sources" },
-  { href: "/admin/runs", label: "Runs & Automations" },
-  { href: "/admin/ads", label: "Ads & Campaigns" },
-  { href: "/admin/billing", label: "Billing & Payments" },
-  { href: "/admin/system-config", label: "System Config" },
+  { href: "/admin/inventory-sources", label: "Sources" },
+  { href: "/admin/runs", label: "Runs" },
+  { href: "/admin/ads", label: "Ads" },
+  { href: "/admin/billing", label: "Billing" },
+  { href: "/admin/system-config", label: "System" },
 ];
 
 export default function AdminLayout({
@@ -40,7 +40,7 @@ export default function AdminLayout({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <span style={{ fontWeight: 600, fontSize: "1.1rem" }}>Project Auto</span>
+          <span style={{ fontWeight: 600, fontSize: "1.1rem" }}>Agentic Ads</span>
           <span
             style={{
               background: "#e53935",

@@ -115,6 +115,7 @@ function AdsContent() {
   const [creativesStatus, setCreativesStatus] = useState<{ ready: number; total: number } | null>(null);
 
   // UI state
+  const [activeTab, setActiveTab] = useState<"status" | "automation">("status");
   const [prerequisitesExpanded, setPrerequisitesExpanded] = useState(true);
   const [configExpanded, setConfigExpanded] = useState(false);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
@@ -283,38 +284,236 @@ function AdsContent() {
   const adsLaunched = objects?.status === "active" || settings?.status === "active";
   const configDone = settings && (settings.geoMode === "radius" ? settings.geoCenterText : settings.geoRegionsJson?.length) && settings.formatsJson.length > 0;
 
+  const lastRunForDisplay = lastRuns?.[0];
+  const lastSyncLabel =
+    lastRunForDisplay?.finishedAt
+      ? (() => {
+          const d = new Date(lastRunForDisplay.finishedAt);
+          const now = new Date();
+          const hours = Math.round((now.getTime() - d.getTime()) / (1000 * 60 * 60));
+          if (hours < 1) return "Just now";
+          if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+          const days = Math.floor(hours / 24);
+          return `${days} day${days !== 1 ? "s" : ""} ago`;
+        })()
+      : "—";
+  const inventoryCount = prerequisites.inventory?.count ?? 0;
+
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+    <div className="max-w-6xl mx-auto px-6 py-8">
+      {/* Header - Figma */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 style={{ fontSize: "1.875rem", fontWeight: 600, letterSpacing: "-0.025em", marginBottom: "0.5rem", color: "var(--pa-dark)" }}>
-              Ads
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 mb-1">
+              {t.ads.pageTitle}
             </h1>
-            <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>Automated Meta advertising for your vehicle inventory</p>
+            <p className="text-sm text-gray-600">{t.ads.pageSubtitle}</p>
           </div>
           {adsLaunched && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.5rem 1rem",
-                  background: "var(--pa-green)",
-                  color: "white",
-                  borderRadius: 6,
-                  fontSize: "1rem",
-                  fontWeight: 500,
-                }}
-              >
-                <CheckCircle2 size={16} />
-                Campaign Active
-              </div>
-            </div>
+            <span
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium text-white"
+              style={{ background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)" }}
+            >
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              {t.ads.live}
+            </span>
           )}
         </div>
+
+        {/* Tabs - Figma */}
+        <div className="flex gap-1 mt-4 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab("status")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === "status"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {t.ads.tabStatus}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("automation")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === "automation"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-600 hover:text-gray-900"
+            }`}
+          >
+            {t.ads.tabAutomation}
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "automation" ? (
+        /* Automation tab - Figma layout */
+        <div className="space-y-6">
+          <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">{t.ads.automaticSync}</h3>
+              <p className="text-xs text-gray-600 mt-0.5">{t.automation.enableAutomaticSyncDescription}</p>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div>
+                  <p className="font-medium text-sm text-gray-900">{t.ads.enableAutomaticSync}</p>
+                  <p className="text-xs text-gray-600 mt-0.5">{t.ads.checkNightly}</p>
+                </div>
+                <a href="/automation" className="text-sm text-blue-600 hover:underline">{t.nav.automation}</a>
+              </div>
+              <div className="pt-2 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleSync}
+                  disabled={syncLoading}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {t.ads.runManualSync}
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">{t.ads.howItWorks}</h3>
+            </div>
+            <div className="p-5 space-y-2.5 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="w-1 h-1 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />
+                <p><strong>{t.ads.autoCreateAds}</strong> {t.automation.autoCreateAdsText}</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1 h-1 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />
+                <p><strong>{t.ads.autoPauseAds}</strong> {t.automation.autoPauseAdsText}</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1 h-1 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />
+                <p><strong>{t.ads.budgetDistribution}</strong> {t.automation.budgetDistributionText}</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1 h-1 rounded-full bg-blue-600 mt-1.5 flex-shrink-0" />
+                <p><strong>{t.ads.dailyMonitoring}</strong> {t.automation.dailyMonitoringText}</p>
+              </div>
+            </div>
+          </div>
+          <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+            <div className="p-5 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-900">{t.ads.currentStatus}</h3>
+            </div>
+            <div className="p-5">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">{t.ads.mode}</div>
+                  <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-blue-600 text-white">{t.ads.alwaysOn}</span>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">{t.ads.lastRun}</div>
+                  <div className="font-medium text-sm">{lastSyncLabel}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">{t.dashboard.adsStatus}</div>
+                  <div className="flex items-center gap-1 text-green-600">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span className="font-medium text-sm">{t.ads.healthy}</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">{t.ads.itemsSynced}</div>
+                  <div className="font-medium text-sm">{inventoryCount}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+      {/* Status tab: summary cards + Meta campaign + quick actions - Figma */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="border-2 border-gray-200 rounded-lg bg-white p-4">
+          <div className="text-xs text-gray-600 mb-1">{t.ads.tabStatus}</div>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <span className="font-semibold text-gray-900">{objects?.status === "active" ? t.ads.statusActive : objects?.status ?? "—"}</span>
+          </div>
+        </div>
+        <div className="border-2 border-gray-200 rounded-lg bg-white p-4">
+          <div className="text-xs text-gray-600 mb-1">{t.ads.lastSync}</div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-gray-600" />
+            <span className="font-semibold text-gray-900">{lastSyncLabel}</span>
+          </div>
+        </div>
+        <div className="border-2 border-gray-200 rounded-lg bg-white p-4">
+          <div className="text-xs text-gray-600 mb-1">{t.ads.advertisedItems}</div>
+          <div className="flex items-center gap-2">
+            <Package className="h-4 w-4 text-gray-600" />
+            <span className="font-semibold text-gray-900">{inventoryCount}</span>
+          </div>
+        </div>
+      </div>
+      <div className="border border-gray-200 rounded-lg bg-white overflow-hidden mb-6">
+        <div className="p-5 border-b border-gray-200 flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">{t.ads.metaCampaign}</h3>
+            <p className="text-xs text-gray-600">{t.ads.metaCampaignDescription}</p>
+          </div>
+          <a href="https://business.facebook.com/adsmanager" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium hover:bg-gray-50">
+            <ExternalLink className="h-3 w-3" />
+            {t.ads.openAdsManager}
+          </a>
+        </div>
+        <div className="p-5 space-y-2">
+          <div className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              <div>
+                <div className="font-medium text-xs">{t.ads.productCatalog}</div>
+                <div className="text-xs text-gray-600">{inventoryCount} {t.dashboard.itemsLabel}</div>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">{t.ads.statusActive.toLowerCase()}</span>
+          </div>
+          <div className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              <div>
+                <div className="font-medium text-xs">{t.ads.campaign}</div>
+                <div className="text-xs text-gray-600">Automated</div>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">{t.ads.statusActive.toLowerCase()}</span>
+          </div>
+          <div className="flex items-center justify-between p-2.5 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+              <div>
+                <div className="font-medium text-xs">{t.ads.dynamicProductAds}</div>
+                <div className="text-xs text-gray-600">{settings?.formatsJson?.join(", ") ?? "Feed, Reels"}</div>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 border border-green-200">{t.ads.statusActive.toLowerCase()}</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3 mb-6">
+        <button
+          type="button"
+          onClick={handleSync}
+          disabled={syncLoading}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <RefreshCw className="h-4 w-4" />
+          {t.ads.syncNow}
+        </button>
+        <Link href="/settings" className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <Settings className="h-4 w-4" />
+          {t.nav.settings}
+        </Link>
+      </div>
 
         {/* Progress Indicator */}
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
@@ -357,7 +556,6 @@ function AdsContent() {
             </div>
           ))}
         </div>
-      </div>
 
       {error && (
         <div style={{ marginBottom: "1.5rem" }}>
@@ -1555,6 +1753,8 @@ function AdsContent() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

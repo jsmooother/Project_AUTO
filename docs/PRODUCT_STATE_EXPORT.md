@@ -6,9 +6,9 @@
 
 ## 1. Product Overview
 
-Agentic Ads automates Meta advertising for businesses with inventory catalogs, such as car dealerships. The platform crawls the customer's website to extract inventory items, automatically generates ad creatives with price and branding overlays, and publishes campaigns to Meta. Customers see only delivery metrics (impressions, clicks, CTR, reach) and their credit balance—never Meta spend, CPC, or CPM data. Campaigns are created in a paused state by default, requiring manual activation in Meta Ads Manager. The system uses a credit-based billing model where customers purchase credits (SEK) that are consumed based on their plan.
+Agentic Ads is an agentic ads buyer that automates advertising on Meta (and future channels like TikTok, LinkedIn) for businesses with online inventory. The platform crawls the customer's website to index any kind of ad inventory they have online, automatically generates ad creatives with price and branding overlays, and publishes campaigns to Meta. Customers see only delivery metrics (impressions, clicks, CTR, reach) and their credit balance—never Meta spend, CPC, or CPM data. Campaigns are created in a paused state by default, requiring manual activation in Meta Ads Manager. The system uses a credit-based billing model where customers purchase credits (SEK) that are consumed based on their plan.
 
-**Who it's for:** Non-technical advertisers (e.g., car dealership owners) who want automated Meta ads without managing campaigns, budgets, or creative design.
+**Who it's for:** Non-technical advertisers who have online inventory (products, listings, jobs, etc.) and want automated Meta ads without managing campaigns, budgets, or creative design.
 
 **What users get:** Fully automated Meta advertising that syncs inventory, generates creatives, and publishes campaigns without manual intervention. Users only need to activate campaigns in Meta Ads Manager when ready.
 

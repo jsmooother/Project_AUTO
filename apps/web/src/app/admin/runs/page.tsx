@@ -56,18 +56,37 @@ function RunsContent() {
     return p.toString();
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) {
+    return (
+      <div>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Runs</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Run monitoring</p>
+        </div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
   if (error) {
     return (
-      <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
-        {error}
+      <div>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Runs</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Run monitoring</p>
+        </div>
+        <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
+          {error}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1rem" }}>Runs & Automations</h1>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Runs</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Run monitoring</p>
+      </div>
       <div style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
         <select
           value={typeFilter}

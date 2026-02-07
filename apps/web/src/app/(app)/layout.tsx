@@ -34,6 +34,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const customerId = auth.status === "authenticated" ? auth.user?.customerId ?? null : null;
   const { result: onboardingResult, loading: onboardingLoading } = useOnboardingStatus(customerId);
 
+  const isOnboardingPath = pathname?.startsWith("/onboarding") ?? false;
+  const isSettingsPath = pathname === "/settings";
+  const onboardingCompleteFromStorage =
+    typeof window !== "undefined" && window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true";
+  const onboardingComplete = onboardingResult?.overallComplete ?? onboardingCompleteFromStorage;
+
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -44,19 +50,24 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    if (auth.status === "unauthenticated") {
+      router.replace("/login");
+      return;
+    }
+    if (auth.status !== "authenticated") return;
+    if (isOnboardingPath || isSettingsPath) return;
+    if (onboardingComplete) return;
+    if (onboardingLoading && !onboardingCompleteFromStorage) return;
+    router.replace("/onboarding/start");
+  }, [auth.status, isOnboardingPath, isSettingsPath, onboardingComplete, onboardingLoading, onboardingCompleteFromStorage, router]);
+
   if (auth.status === "loading") {
     return <LoadingSpinner />;
   }
   if (auth.status === "unauthenticated") {
-    if (typeof window !== "undefined") router.replace("/login");
     return <LoadingSpinner />;
   }
-
-  const isOnboardingPath = pathname?.startsWith("/onboarding") ?? false;
-  const isSettingsPath = pathname === "/settings";
-  const onboardingCompleteFromStorage =
-    typeof window !== "undefined" && window.localStorage.getItem(ONBOARDING_COMPLETE_KEY) === "true";
-  const onboardingComplete = onboardingResult?.overallComplete ?? onboardingCompleteFromStorage;
 
   if (isOnboardingPath) {
     return <div style={{ minHeight: "100vh", background: "var(--pa-gray-bg)" }}>{children}</div>;
@@ -66,7 +77,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     return <LoadingSpinner />;
   }
   if (!onboardingComplete && !isSettingsPath) {
-    if (typeof window !== "undefined") router.replace("/onboarding/start");
     return <LoadingSpinner />;
   }
 

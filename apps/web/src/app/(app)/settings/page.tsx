@@ -387,8 +387,8 @@ function SettingsPage() {
   };
 
   return (
-    <div style={{ maxWidth: 896, margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <PageHeader title="Settings" description="Manage your account and connected services" />
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <PageHeader title={t.settings.title} description={t.settings.subtitle} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
         {/* Account Information */}
@@ -684,8 +684,8 @@ function SettingsPage() {
           </div>
         </CardSection>
 
-        {/* Connected Meta Account — 3-step flow: Connect (optional), Select ad account, Grant Partner Access */}
-        <CardSection icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>} iconBg="#dbeafe" iconColor="#2563eb" title="Connected Meta account" description="Your Meta (Facebook/Instagram) advertising platform">
+        {/* Meta connection - Figma: Meta connection / Facebook & Instagram Ads */}
+        <CardSection icon={<span style={{ color: "#2563eb" }}><MetaIcon size={20} /></span>} iconBg="#dbeafe" iconColor="#2563eb" title={t.settings.meta.sectionTitle} description={t.settings.meta.sectionDescription}>
           {adsStatus?.derived?.metaAccountMode === "internal_test" && (
             <div style={{ marginBottom: "1rem" }}>
               <TestModeBanner />
@@ -903,7 +903,7 @@ function SettingsPage() {
               <div style={{ marginBottom: "0.5rem" }}>
                 <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: 4 }}>{t.settings.meta.partnerNameLabel}</label>
                 <code style={{ display: "block", padding: "0.5rem 0.75rem", background: "#f3f4f6", border: "1px solid var(--pa-border)", borderRadius: 6, fontSize: "0.875rem", fontFamily: "ui-monospace, monospace" }}>
-                  {metaConnection?.metaPartnerName ?? "Project Auto"}
+                  {metaConnection?.metaPartnerName ?? "Agentic Ads"}
                 </code>
               </div>
 

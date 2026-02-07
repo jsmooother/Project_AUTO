@@ -8,7 +8,7 @@ import { apiGet } from "@/lib/api";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 import { ErrorBanner } from "@/components/ErrorBanner";
 import { useI18n } from "@/lib/i18n/context";
-import { BarChart3, DollarSign, Megaphone, TrendingUp, Package, AlertTriangle } from "lucide-react";
+import { BarChart3, DollarSign, Megaphone, TrendingUp, Package, AlertTriangle, Clock } from "lucide-react";
 
 const DASHBOARD_INVENTORY_COUNT_KEY = "dashboard_last_inventory_count";
 
@@ -107,17 +107,59 @@ function DashboardContent() {
   const impressions = performance?.totals?.impressions ?? 0;
   const hasCampaign = !!adsStatus?.objects?.campaignId;
   const metaConnected = !!adsStatus?.prerequisites?.meta?.ok;
+  const statusRunning = hasCampaign && metaConnected && adsStatus?.objects?.status === "active";
+  const lastRun = adsStatus?.lastRuns?.[0];
+  const lastSyncLabel =
+    lastRun?.finishedAt
+      ? (() => {
+          const d = new Date(lastRun.finishedAt);
+          const now = new Date();
+          const hours = Math.round((now.getTime() - d.getTime()) / (1000 * 60 * 60));
+          if (hours < 1) return "Just now";
+          if (hours < 24) return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
+          const days = Math.floor(hours / 24);
+          return `${days} day${days !== 1 ? "s" : ""} ago`;
+        })()
+      : "—";
   const showInventoryIncreased =
     prevInventoryCountRef.current !== null && inventoryCount > prevInventoryCountRef.current;
-  const lastRun = adsStatus?.lastRuns?.[0];
 
   return (
-    <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-      <div style={{ marginBottom: "2rem" }}>
-        <h1 style={{ fontSize: "1.875rem", fontWeight: 600, letterSpacing: "-0.025em", marginBottom: "0.5rem", color: "var(--pa-dark)" }}>
-          {t.dashboard.title}
+    <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1">
+          {t.dashboard.overview}
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>{t.dashboard.subtitle}</p>
+        <p className="text-sm text-gray-600">{t.dashboard.automationSummary}</p>
+      </div>
+
+      {/* Status hero - Figma */}
+      <div className="mb-6 border border-gray-200 rounded-lg bg-white overflow-hidden">
+        <div className="p-5 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {statusRunning ? (
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={{ background: "#d1fae5", color: "#065f46", border: "1px solid #a7f3d0" }}
+              >
+                <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+                {t.dashboard.adsRunning}
+              </span>
+            ) : (
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                {t.dashboard.attentionNeeded}
+              </span>
+            )}
+            <span className="text-sm text-gray-600">
+              {inventoryCount} {t.dashboard.itemsLabel} • {t.dashboard.lastSync}: {lastSyncLabel}
+            </span>
+          </div>
+          <Clock className="w-4 h-4 text-gray-400" />
+        </div>
       </div>
 
       {/* Upsell banners */}

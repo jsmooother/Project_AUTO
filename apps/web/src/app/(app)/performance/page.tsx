@@ -98,7 +98,8 @@ export default function PerformancePage() {
     if (!data.meta.connected) {
       return (
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "1.5rem" }}>Performance</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Performance</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "1.5rem" }}>Detailed metrics and trends</p>
           <EmptyState
             title="Meta account not connected"
             description={data.hint || "Connect your Meta account to view campaign performance."}
@@ -112,7 +113,8 @@ export default function PerformancePage() {
     if (!data.objects.campaignId) {
       return (
         <div>
-          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "1.5rem" }}>Performance</h1>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Performance</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "1.5rem" }}>Detailed metrics and trends</p>
           <EmptyState
             title="No campaign published yet"
             description={data.hint || "Publish a campaign from the Ads page to start tracking performance."}
@@ -127,7 +129,10 @@ export default function PerformancePage() {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600 }}>Performance</h1>
+        <div>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Performance</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Detailed metrics and trends</p>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           {/* Date range selector */}
           <div style={{ display: "flex", gap: "0.25rem", background: "#f3f4f6", padding: "0.25rem", borderRadius: "6px" }}>

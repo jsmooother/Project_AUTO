@@ -69,8 +69,8 @@ export default function BillingPage() {
   return (
     <div style={{ maxWidth: 1280 }}>
       <PageHeader
-        title="Billing & Credits"
-        description="Your Project Auto credits and delivery metrics"
+        title="Billing"
+        description="Credits and payment history"
       />
 
       {error && <ErrorBanner message={error} />}

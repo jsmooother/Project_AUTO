@@ -39,7 +39,7 @@ export function AdminBilling() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-600">
-              Project Auto Fees (MTD)
+              Agentic Ads Fees (MTD)
             </CardTitle>
           </CardHeader>
           <CardContent>

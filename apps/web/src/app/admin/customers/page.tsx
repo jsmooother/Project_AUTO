@@ -52,7 +52,10 @@ export default function AdminCustomersPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Customers</h1>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Customers</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Customer list</p>
+        </div>
         <p>Loading...</p>
       </div>
     );
@@ -61,7 +64,10 @@ export default function AdminCustomersPage() {
   if (error) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Customers</h1>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Customers</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Customer list</p>
+        </div>
         <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
           {error}
         </div>
@@ -71,7 +77,10 @@ export default function AdminCustomersPage() {
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1rem" }}>Customers</h1>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Customers</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Customer list</p>
+      </div>
 
       {isDev && (
         <div style={{ marginBottom: "1.5rem", padding: "1rem", background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "8px" }}>

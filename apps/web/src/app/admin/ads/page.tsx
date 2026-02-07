@@ -95,7 +95,10 @@ export default function AdminAdsPage() {
   if (loading) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Ads & Campaigns</h1>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Ads</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Ad platform management</p>
+        </div>
         <p>Loading...</p>
       </div>
     );
@@ -104,7 +107,10 @@ export default function AdminAdsPage() {
   if (error || !data) {
     return (
       <div>
-        <h1 style={{ marginBottom: "1rem" }}>Ads & Campaigns</h1>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Ads</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Ad platform management</p>
+        </div>
         <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
           {error ?? "Failed to load ads data"}
         </div>
@@ -206,8 +212,8 @@ export default function AdminAdsPage() {
     <div style={{ maxWidth: 1600, margin: "0 auto", padding: "1.5rem" }}>
       {/* Page Header */}
       <div style={{ marginBottom: "1.5rem" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Ads & Campaigns</h1>
-        <p style={{ fontSize: "0.875rem", color: "#666" }}>Monitor all customer Meta ad campaigns and spending</p>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Ads</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Ad platform management</p>
       </div>
 
       {/* Summary Metrics */}

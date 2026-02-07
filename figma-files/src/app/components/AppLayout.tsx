@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { LayoutDashboard, Package, Play, DollarSign, Settings as SettingsIcon, ChevronDown, Palette, Megaphone } from "lucide-react";
+import { LayoutDashboard, Package, DollarSign, Settings as SettingsIcon, ChevronDown, Palette, Megaphone } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import {
   DropdownMenu,
@@ -24,7 +24,7 @@ export function AppLayout() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-8">
               <Link to="/app/dashboard" className="text-xl font-semibold tracking-tight">
-                Project Auto
+                Agentic Ads
               </Link>
 
               <nav className="flex items-center gap-1">
@@ -46,15 +46,6 @@ export function AppLayout() {
                     Inventory
                   </Button>
                 </Link>
-                <Link to="/app/automation">
-                  <Button
-                    variant={isActive("/app/automation") ? "secondary" : "ghost"}
-                    className="gap-2"
-                  >
-                    <Play className="h-4 w-4" />
-                    Automation
-                  </Button>
-                </Link>
                 <Link to="/app/templates">
                   <Button
                     variant={isActive("/app/templates") ? "secondary" : "ghost"}
@@ -64,7 +55,7 @@ export function AppLayout() {
                     Templates
                   </Button>
                 </Link>
-                <Link to="/app/ads">
+                <Link to="/app/ads/simple">
                   <Button
                     variant={isActive("/app/ads") ? "secondary" : "ghost"}
                     className="gap-2"
@@ -107,7 +98,9 @@ export function AppLayout() {
                     <Link to="/app/billing">Billing</Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>Log out</DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link to="/">Log out</Link>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

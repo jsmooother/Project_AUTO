@@ -72,13 +72,9 @@ function AdCard({
   compact?: boolean;
   noBorder?: boolean;
 }) {
-  // Parse "2024 Porsche 911 Carrera" style or use as-is
-  const parts = (item.title ?? "Sample Item").split(" ");
-  const make = parts.slice(1, 2).join(" ") || parts[0] || "Item";
-  const model = parts.slice(2).join(" ") || parts[1] || "";
-  const year = /^\d{4}$/.test(parts[0] ?? "") ? parts[0] : "";
-  const displayTitle = year ? `${year} ${make}` : item.title ?? "Item";
-  const displaySub = model || (year ? make : "");
+  // Use title as-is or fallback to generic sample
+  const displayTitle = item.title ?? "Sample item";
+  const displaySub = "";
 
   const price = item.price != null ? item.price : 0;
   const strikethrough = price > 100 ? Math.round(price * 1.2) : undefined;
@@ -133,7 +129,7 @@ function AdCard({
       {!compact && (
         <>
           <div style={{ padding: "0.75rem 1rem", fontSize: "0.9rem", color: "var(--pa-gray)" }}>
-            Experience luxury and performance. Visit our showroom today.
+            View details and learn more.
           </div>
           <div style={{ padding: "0 1rem 1rem" }}>
             <button
@@ -349,11 +345,11 @@ export default function TemplatesPage() {
   const exampleItems = inventory.length >= 3
     ? inventory.slice(0, 3)
     : [
-        { id: "1", externalId: "1", title: "2024 Porsche 911 Carrera", price: 124990 },
-        { id: "2", externalId: "2", title: "2024 BMW X5 xDrive40i", price: 68900 },
-        { id: "3", externalId: "3", title: "2024 Tesla Model 3 Long Range", price: 52990 },
+        { id: "1", externalId: "1", title: "Sample listing", price: 12490 },
+        { id: "2", externalId: "2", title: "Premium product", price: 6890 },
+        { id: "3", externalId: "3", title: "Featured listing", price: 5290 },
       ];
-  const previewItem = exampleItems[0] ?? { title: "2024 Porsche 911 Carrera", price: 124990 };
+  const previewItem = exampleItems[0] ?? { title: "Sample listing", price: 12490 };
 
   return (
     <div style={{ maxWidth: 1280 }}>
@@ -370,8 +366,8 @@ export default function TemplatesPage() {
         >
           Ad Templates
         </h1>
-        <p style={{ fontSize: "1rem", color: "var(--pa-gray)" }}>
-          Choose how your ads will appear on Meta platforms. Templates automatically use your inventory data.
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>
+          Customize how your ads look
         </p>
       </div>
 

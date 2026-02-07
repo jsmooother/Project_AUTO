@@ -1,3 +1,2 @@
-@import './fonts.css';
+/* Minimal CSS - just importing Tailwind */
 @import './tailwind.css';
-@import './theme.css';

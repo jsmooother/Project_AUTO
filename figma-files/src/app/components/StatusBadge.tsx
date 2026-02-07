@@ -22,7 +22,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     },
   };
 
-  const variant = variants[status];
+  const variant = variants[status] ?? variants.healthy; // Fallback to healthy if status is invalid
 
   return (
     <Badge variant="outline" className={variant.className}>

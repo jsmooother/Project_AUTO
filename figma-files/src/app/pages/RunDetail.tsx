@@ -9,10 +9,10 @@ export function RunDetail() {
     <div className="mx-auto max-w-7xl px-6 py-8">
       {/* Header */}
       <div className="mb-6">
-        <Link to="/app/automation">
+        <Link to="/app/ads">
           <Button variant="ghost" className="gap-2 mb-4">
             <ArrowLeft className="h-4 w-4" />
-            Back to Automation
+            Back to Ads
           </Button>
         </Link>
         <div className="flex items-start justify-between">

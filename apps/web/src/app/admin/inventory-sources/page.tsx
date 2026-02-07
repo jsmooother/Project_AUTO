@@ -31,18 +31,37 @@ export default function AdminInventorySourcesPage() {
       .finally(() => setLoading(false));
   }, [apiUrl]);
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) {
+    return (
+      <div>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Sources</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Data sources</p>
+        </div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
   if (error) {
     return (
-      <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
-        {error}
+      <div>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Sources</h1>
+          <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Data sources</p>
+        </div>
+        <div style={{ padding: "1rem", background: "#fee", color: "#c00", borderRadius: "4px" }}>
+          {error}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 style={{ marginBottom: "1rem" }}>Inventory Sources</h1>
+      <div style={{ marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, marginBottom: "0.25rem" }}>Sources</h1>
+        <p style={{ fontSize: "0.875rem", color: "#6b7280" }}>Data sources</p>
+      </div>
       {sources.length === 0 ? (
         <p style={{ color: "#666" }}>No inventory sources.</p>
       ) : (

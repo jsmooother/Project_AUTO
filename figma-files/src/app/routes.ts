@@ -1,19 +1,32 @@
 import { createBrowserRouter } from "react-router";
+import { TestLanding } from "@/app/pages/TestLanding";
 import { LandingPage } from "@/app/pages/LandingPage";
+import { FeaturesPage } from "@/app/pages/FeaturesPage";
+import { PricingPage } from "@/app/pages/PricingPage";
+import { AboutPage } from "@/app/pages/AboutPage";
 import { Login } from "@/app/pages/Login";
 import { Signup } from "@/app/pages/Signup";
-import { OnboardingStep1 } from "@/app/pages/onboarding/OnboardingStep1";
-import { OnboardingStep2 } from "@/app/pages/onboarding/OnboardingStep2";
-import { OnboardingStep3 } from "@/app/pages/onboarding/OnboardingStep3";
-import { OnboardingStep4 } from "@/app/pages/onboarding/OnboardingStep4";
+import { ResetPassword } from "@/app/pages/ResetPassword";
+
+// New onboarding screens (3-step flow)
+import OnboardingStart from "@/app/onboarding/start/page";
+import OnboardingConnect from "@/app/onboarding/connect/page";
+import OnboardingLaunch from "@/app/onboarding/launch/page";
+
 import { Dashboard } from "@/app/pages/Dashboard";
-import { Inventory } from "@/app/pages/Inventory";
-import { Automation } from "@/app/pages/Automation";
+import { InventoryNew } from "@/app/pages/InventoryNew";
 import { RunDetail } from "@/app/pages/RunDetail";
-import { Billing } from "@/app/pages/Billing";
-import { Settings } from "@/app/pages/Settings";
-import { Templates } from "@/app/pages/Templates";
+import { RunsNew } from "@/app/pages/RunsNew";
+import { BillingNew } from "@/app/pages/BillingNew";
+import { SettingsNew } from "@/app/pages/SettingsNew";
+import { TemplatesNew } from "@/app/pages/TemplatesNew";
 import { Ads } from "@/app/pages/Ads";
+import { AdsSimple } from "@/app/pages/AdsSimple";
+import { AdsSetup } from "@/app/pages/AdsSetup";
+import { AdsCampaign } from "@/app/pages/AdsCampaign";
+import { AdsDiagnostics } from "@/app/pages/AdsDiagnostics";
+import { AdsBoosts } from "@/app/pages/AdsBoosts";
+import { PerformanceNew } from "@/app/pages/PerformanceNew";
 import { AppLayout } from "@/app/components/AppLayout";
 
 // Admin pages
@@ -34,6 +47,22 @@ export const router = createBrowserRouter([
     Component: LandingPage,
   },
   {
+    path: "/test",
+    Component: TestLanding,
+  },
+  {
+    path: "/features",
+    Component: FeaturesPage,
+  },
+  {
+    path: "/pricing",
+    Component: PricingPage,
+  },
+  {
+    path: "/about",
+    Component: AboutPage,
+  },
+  {
     path: "/login",
     Component: Login,
   },
@@ -42,20 +71,20 @@ export const router = createBrowserRouter([
     Component: Signup,
   },
   {
-    path: "/onboarding/step1",
-    Component: OnboardingStep1,
+    path: "/reset-password",
+    Component: ResetPassword,
   },
   {
-    path: "/onboarding/step2",
-    Component: OnboardingStep2,
+    path: "/onboarding/start",
+    Component: OnboardingStart,
   },
   {
-    path: "/onboarding/step3",
-    Component: OnboardingStep3,
+    path: "/onboarding/connect",
+    Component: OnboardingConnect,
   },
   {
-    path: "/onboarding/step4",
-    Component: OnboardingStep4,
+    path: "/onboarding/launch",
+    Component: OnboardingLaunch,
   },
   {
     path: "/app",
@@ -67,31 +96,51 @@ export const router = createBrowserRouter([
       },
       {
         path: "inventory",
-        Component: Inventory,
-      },
-      {
-        path: "automation",
-        Component: Automation,
-      },
-      {
-        path: "automation/runs/:id",
-        Component: RunDetail,
+        Component: InventoryNew,
       },
       {
         path: "billing",
-        Component: Billing,
+        Component: BillingNew,
       },
       {
         path: "settings",
-        Component: Settings,
+        Component: SettingsNew,
       },
       {
         path: "templates",
-        Component: Templates,
+        Component: TemplatesNew,
       },
       {
         path: "ads",
         Component: Ads,
+      },
+      {
+        path: "ads/simple",
+        Component: AdsSimple,
+      },
+      {
+        path: "ads/setup",
+        Component: AdsSetup,
+      },
+      {
+        path: "ads/campaign",
+        Component: AdsCampaign,
+      },
+      {
+        path: "ads/diagnostics",
+        Component: AdsDiagnostics,
+      },
+      {
+        path: "ads/boosts",
+        Component: AdsBoosts,
+      },
+      {
+        path: "performance",
+        Component: PerformanceNew,
+      },
+      {
+        path: "runs",
+        Component: RunsNew,
       },
     ],
   },
